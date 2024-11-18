@@ -1,0 +1,57 @@
+[package]
+name = "bis-core"
+repository = { workspace = true }
+version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bigdecimal = { workspace = true, features = ["serde"] }
+bitcoincore-rpc = { workspace = true }
+futures = { workspace = true }
+futures-core = { version = "0.3" }
+hex = { workspace = true }
+log = { workspace = true }
+once_cell = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sqlx = { workspace = true, default-features = false, features = [
+    "runtime-tokio-rustls",
+    "macros",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+    "bigdecimal",
+    "decimal",
+    "bit-vec",
+    "any",
+    "migrate",
+] }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+    "signal",
+    "rt-multi-thread",
+    "net",
+    "time",
+    "macros",
+    "sync",
+] }
+tokio-stream = { workspace = true, features = ["sync"] }
+
+itertools = "0.10.3"
+lazy_static = "1.4.0"
+num-traits = "0.2.12"
+tokio-tungstenite = "0.17.1"
+url = "2.2.2"
+
+# tools
+impl-serde = { version = "0.3.0" }
+rustc-hex = { workspace = true }
+tracing = { workspace = true }
