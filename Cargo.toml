@@ -1,9 +1,5 @@
 [workspace]
-members = [
-  "core",
-  "bin/bis",
-  "integration-tests",
-]
+members = ["core", "bin/bis", "integration-tests"]
 resolver = "2"
 
 [workspace.package]
@@ -56,3 +52,7 @@ tokio = { version = "1", features = [
   "sync",
   "io-std",
 ] }
+
+atb = { git = "https://github.com/aetheras-io/atb-rs", tag = "v0.14.5" }
+atb-cli = { git = "https://github.com/aetheras-io/atb-rs", tag = "v0.14.5" }
+atb-tokio-ext = { git = "https://github.com/aetheras-io/atb-rs", tag = "v0.14.5" }
