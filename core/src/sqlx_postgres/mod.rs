@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{
     migrate::Migrator,
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
-    types::{BigDecimal, Json},
+    types::{Json},
     Error as SqlxError, PgPool, Postgres, Row,
 };
 

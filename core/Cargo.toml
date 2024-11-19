@@ -26,8 +26,6 @@ sqlx = { workspace = true, default-features = false, features = [
     "uuid",
     "chrono",
     "json",
-    "bigdecimal",
-    "decimal",
     "bit-vec",
     "any",
     "migrate",

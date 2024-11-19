@@ -27,8 +27,6 @@ sqlx = { workspace = true, features = [
     "uuid",
     "chrono",
     "json",
-    "bigdecimal",
-    "decimal",
     "bit-vec",
 ] }
 thiserror = { workspace = true }
