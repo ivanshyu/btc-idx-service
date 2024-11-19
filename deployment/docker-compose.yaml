@@ -1,0 +1,37 @@
+version: '3'
+
+networks:
+  local:
+
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    expose:
+      - ${PGPORT}/tcp
+    ports:
+      - ${PGPORT}:5432
+    environment:
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+    networks:
+      - local
+
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    ports:
+      - ${ADMINER_PORT}:8080
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    networks:
+      - local
+
+  bitcoin-testnet:
+    image: freewil/bitcoin-testnet-box
+    container_name: bitcoin-testnet
+    ports:
+      - "19001:19001"
+      - "19011:19011"
+    stdin_open: true
+    tty: true

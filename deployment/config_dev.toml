@@ -1,4 +1,4 @@
-provider_url = 'http://ethereum-testnet:8545'
+provider_url = 'http://bitcoin-testnet:19001'
 poll_frequency_ms = 10000
 # `start_block` is optional.  If omitted, the newest block queried from the chain will
 # be the `start_block` value
