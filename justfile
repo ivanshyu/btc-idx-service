@@ -21,7 +21,7 @@ build:
 
 # Build debug bis binary
 build-debug:
-	cargo build --bin swap 
+	cargo build --bin bis 
 
 ###########################################################
 ### Docker
@@ -49,8 +49,11 @@ local-pull:
     docker compose -f ./deployment/docker-compose.yaml pull
     docker image prune -f
 
+local-dev:
+	just local-pg local-testnets
+
 local-mono:
-    RUST_BACKTRACE=1 RUST_LOG=info,sqlx=info cargo run --bin bis mono
+    RUST_BACKTRACE=1 RUST_LOG=info,sqlx=info cargo run --bin bis scan-block
 
 local-pg:
 	docker compose -f ./deployment/docker-compose.yaml up -d postgres adminer 

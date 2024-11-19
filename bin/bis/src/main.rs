@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
 
     use Subcommand::*;
     match cli.subcommand {
-        Mono(opts) => mono::run(cli.shared_params, opts),
+        ScanBlock(opts) => mono::run(cli.shared_params, opts),
         _ => Ok(()),
     }
 }

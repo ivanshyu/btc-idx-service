@@ -28,10 +28,10 @@ services:
       - local
 
   bitcoin-testnet:
-    image: freewil/bitcoin-testnet-box
+    image: niclin/bitcoin-testnet-box
     container_name: bitcoin-testnet
     ports:
-      - "19001:19001"
+      - "18332:18332"
       - "19011:19011"
-    stdin_open: true
-    tty: true
+    networks:
+      - local

@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{
     migrate::Migrator,
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
-    types::{Json},
+    types::Json,
     Error as SqlxError, PgPool, Postgres, Row,
 };
 
@@ -27,6 +27,7 @@ pub async fn create_database(uri: &str) -> sqlx::Result<()> {
     use sqlx::any::Any;
     use sqlx::migrate::MigrateDatabase;
 
+    sqlx::any::install_default_drivers();
     if !Any::database_exists(uri).await? {
         Any::create_database(uri).await
     } else {

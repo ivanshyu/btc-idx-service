@@ -21,10 +21,6 @@ pub struct Opts {
     #[clap(long, default_value = "127.0.0.1:3030", env = "BIS_HOST")]
     host: String,
 
-    /// Fully qualified domain name
-    #[clap(long, default_value = "localhost", env = "BIS_FQDN")]
-    fqdn: String,
-
     /// The service name to use for Apm
     #[clap(
         short,
@@ -37,14 +33,9 @@ pub struct Opts {
 }
 
 pub fn run(shared_params: SharedParams, opts: Opts) -> anyhow::Result<()> {
-    assert!(
-        &shared_params.database_url.contains("{}"),
-        "database url without string interpolation parameter is not allowed."
-    );
-
     let config_file = opts
         .config_file
-        .unwrap_or_else(|| "./deployment/bis_dev.toml".into());
+        .unwrap_or_else(|| "./deployment/config_dev.toml".into());
     let config = Config::from_file(&config_file)
         .map_err(|e| anyhow::anyhow!("failed to load configuration file {config_file:?}: {e}"))?;
 
@@ -78,7 +69,7 @@ pub async fn build_service_config(
     env: &Environment,
     debug: bool,
 ) -> anyhow::Result<ServiceConfig> {
-    log::info!("Configuring ethereum");
+    log::info!("Configuring bitcoin");
     let pg_pool = connect_and_migrate(database_url, 5).await?.into();
 
     // let (harvester, provider) = new_btc_harvester(store.clone(), env, "bitcoin").await?;
