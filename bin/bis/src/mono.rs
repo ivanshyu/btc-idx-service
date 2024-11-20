@@ -13,6 +13,8 @@ use atb_cli::{
 };
 use atb_tokio_ext::TaskService;
 use bis_core::sqlx_postgres::connect_and_migrate;
+use bitcoincore_rpc::{json, Auth};
+use bitcoincore_rpc::{Client, RpcApi};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
 
 #[derive(Parser, Debug, Clone)]
@@ -75,6 +77,8 @@ pub async fn build_service_config(
     // let (harvester, provider) = new_btc_harvester(store.clone(), env, "bitcoin").await?;
     // let handle = harvester.handle();
     // task_service.add_task(harvester.to_boxed_task_fn());
+    // 创建 RPC 客户端
+    let rpc_client = Client::new("http://localhost:18332", Auth::None).unwrap();
 
     Ok(ServiceConfig { pg_pool })
 }

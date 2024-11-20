@@ -6,8 +6,7 @@ AUTHOR := "ivanshyu"
 PROJECT := "btc-idx-service"
 REPO := "https://github.com" / AUTHOR / PROJECT
 ROOT_DIR := justfile_directory()
-# for linux
-# SEM_VER := `awk -F' = ' '$1=="version"{print $2;exit;}' Cargo.toml`
+SEM_VER := `awk -F' = ' '$1=="version"{print $2;exit;}' Cargo.toml`
 
 default:
     @just --choose
@@ -59,9 +58,11 @@ local-pg:
 	docker compose -f ./deployment/docker-compose.yaml up -d postgres adminer 
 
 local-testnet:
+	test -d ~/bitcoin-data/testnet || mkdir -p ~/bitcoin-data/testnet
 	docker compose -f ./deployment/docker-compose.yaml up -d btc-testnet
 	
 local-reg:
+	test -d ~/bitcoin-data/regtest || mkdir -p ~/bitcoin-data/regtest
 	docker compose -f ./deployment/docker-compose.yaml up -d btc-regtest
 
 local-down:

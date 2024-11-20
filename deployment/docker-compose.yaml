@@ -61,8 +61,8 @@ services:
         -regtest=1
         -rpcallowip=0.0.0.0/0
         -rpcbind=0.0.0.0
-        -rpcuser=user
-        -rpcpassword=password
+        -rpcuser=${BTCUSER}
+        -rpcpassword=${BTCUSERPASSWORD}
         -server=1
         -wallet=wallet.dat
         -disablewallet=0
