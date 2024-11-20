@@ -1,5 +1,3 @@
-version: '3'
-
 networks:
   local:
 
@@ -27,11 +25,47 @@ services:
     networks:
       - local
 
-  bitcoin-testnet:
-    image: niclin/bitcoin-testnet-box
-    container_name: bitcoin-testnet
-    ports:
-      - "18332:18332"
-      - "19011:19011"
-    networks:
-      - local
+  btc-testnet:
+      image: kylemanna/bitcoind
+      container_name: bitcoin-testnet
+      restart: always      
+      volumes:
+        - ~/bitcoin-data/testnet:/bitcoin/.bitcoin
+      ports:
+        - "18332:18332"
+        - "18333:18333"
+      environment:
+        BITCOIN_DATA: /efs/bitcoin-data
+      command:
+        -testnet=1
+        -rpcallowip=0.0.0.0/0
+        -rpcbind=0.0.0.0
+        -rpcuser=user
+        -rpcpassword=password
+        -server=1
+        -wallet=wallet.dat
+        -disablewallet=0
+  
+  btc-regtest:
+      image: kylemanna/bitcoind
+      container_name: bitcoin-regtest
+      restart: always      
+      volumes:
+        - ~/bitcoin-data/regtest:/bitcoin/.bitcoin
+      ports:
+        - "18443:18443"
+        - "18444:18444"
+      environment:
+        BITCOIN_DATA: /efs/bitcoin-data
+      command:
+        -regtest=1
+        -rpcallowip=0.0.0.0/0
+        -rpcbind=0.0.0.0
+        -rpcuser=user
+        -rpcpassword=password
+        -server=1
+        -wallet=wallet.dat
+        -disablewallet=0
+volumes:
+  bitcoin_data:
+    driver: local

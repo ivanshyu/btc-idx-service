@@ -58,8 +58,11 @@ local-mono:
 local-pg:
 	docker compose -f ./deployment/docker-compose.yaml up -d postgres adminer 
 
-local-testnets:
-	docker compose -f ./deployment/docker-compose.yaml up -d bitcoin-testnet
+local-testnet:
+	docker compose -f ./deployment/docker-compose.yaml up -d btc-testnet
 	
+local-reg:
+	docker compose -f ./deployment/docker-compose.yaml up -d btc-regtest
+
 local-down:
 	docker compose -f ./deployment/docker-compose.yaml down

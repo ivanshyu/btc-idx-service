@@ -37,9 +37,9 @@ sqlx = { version = "0.8.2", default-features = false, features = [
   "any",
   "migrate",
 ] }
-strum = "0.26.3"
-strum_macros = "0.26.3"
-thiserror = "2.0.3"
+strum = "0.24.1"
+strum_macros = "0.24.3"
+thiserror = "=2.0.3"
 tracing = { version = "0.1.28", default-features = false }
 tokio-stream = { version = "0.1.7", features = ["sync"] }
 tokio = { version = "1", features = [
