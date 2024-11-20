@@ -1,5 +1,5 @@
 use bigdecimal::BigDecimal;
-use bitcoin::{hash_types::Txid, Address, OutPoint};
+use bitcoin::{address::NetworkUnchecked, hash_types::Txid, Address, OutPoint};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -12,7 +12,7 @@ pub struct BtcBlock {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct BtcBalance {
-    pub address: Address,
+    pub address: Address<NetworkUnchecked>,
     pub amount: String,
 }
 
@@ -50,17 +50,9 @@ pub struct BtcWalletEvent {
     pub sequence_id: i64,
     pub block_number: u64,
     pub tx_hash: String,
-    pub address: Address,
+    pub address: Address<NetworkUnchecked>,
     pub amount: String,
     pub action: Action,
-}
-
-pub type BtcWalletEventKey = (String, String);
-
-impl BtcWalletEvent {
-    pub fn get_key(&self) -> BtcWalletEventKey {
-        (self.tx_hash.clone(), *&self.address)
-    }
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
