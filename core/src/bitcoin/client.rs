@@ -24,7 +24,7 @@ use atb_cli::once_cell::sync::OnceCell;
 use atb_types::Utc;
 use bitcoin::block::Bip34Error;
 use bitcoincore_rpc::bitcoin::Block;
-use bitcoincore_rpc::{Auth, Client as RpcClient, Error as RpcError};
+use bitcoincore_rpc::{Auth, Client as RpcClient, Error as RpcError, RpcApi};
 use itertools::Itertools;
 use lazy_static::__Deref;
 use num_traits::Zero;
@@ -109,6 +109,11 @@ impl Client {
 
     pub fn inner(&self) -> &RpcClient {
         &self.inner
+    }
+
+    pub fn get_tip_number(&self) -> Result<u64, Error> {
+        let tip = (&*self.inner).get_block_count()?;
+        Ok(tip)
     }
 }
 
