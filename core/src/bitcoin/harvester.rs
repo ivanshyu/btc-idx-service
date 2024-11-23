@@ -1,11 +1,14 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use super::{
     client::{Client, Processor},
     types::BlockInfo,
 };
-use crate::Command;
+use crate::{Command, CommandHandler};
 
+use atb_tokio_ext::{Shutdown, ShutdownComplete};
+use futures::FutureExt;
+use futures_core::future::BoxFuture;
 use tokio::{sync::mpsc, time::sleep};
 
 #[derive(Debug, thiserror::Error)]
@@ -20,7 +23,7 @@ pub enum Error {
     InvalidDesiredHeight,
 
     #[error("Client: `{0}`")]
-    Client(super::client::Error),
+    Client(#[from] super::client::Error),
 
     #[error("Other: `{0}`")]
     Other(#[from] Box<dyn std::error::Error + Sync + Send>),
@@ -29,7 +32,7 @@ pub enum Error {
 pub struct Harvester {
     sender: mpsc::Sender<Command>,
     receiver: Option<mpsc::Receiver<Command>>,
-    client: Client,
+    client: Arc<Client>,
     block_processor: Processor,
     start_height: Option<u64>,
     end_height: Option<u64>,
@@ -41,18 +44,18 @@ pub struct Harvester {
 
 impl Harvester {
     pub fn new(
-        sender: mpsc::Sender<Command>,
-        receiver: Option<mpsc::Receiver<Command>>,
-        client: Client,
+        client: Arc<Client>,
         block_processor: Processor,
         start_height: Option<u64>,
         end_height: Option<u64>,
         sleep_ms: u64,
         name: String,
     ) -> Self {
+        let (sender, receiver) = mpsc::channel(100);
+
         Self {
             sender,
-            receiver,
+            receiver: Some(receiver),
             client,
             block_processor,
             start_height,
@@ -150,7 +153,7 @@ impl Harvester {
 
         Self::process_blocks(
             &self.name,
-            &mut self.client,
+            &self.client,
             &mut self.block_processor,
             prev_block,
             desired_height,
@@ -163,20 +166,15 @@ impl Harvester {
 
     pub async fn process_blocks(
         name: &str,
-        client: &mut Client,
-        block_processor: &mut BP,
+        client: &Client,
+        block_processor: &mut Processor,
         prev_block: &mut BlockInfo,
         desired_height: u64,
         process_first: bool,
     ) -> Result<(), Error> {
-        let mut events = Vec::new();
         if process_first {
             log::trace!("🤖 {} Processing first block {}", name, prev_block.number);
-            block_processor
-                .process(prev_block)
-                .await
-                .map(|evts| events.extend(evts))
-                .map_err(Into::into)?;
+            block_processor.process(prev_block).await?;
             log::trace!("✅ {} Finished Processing first block", name);
         }
 
@@ -190,13 +188,9 @@ impl Harvester {
                 .map_err(|e| Error::Client(e.into()))?
                 .ok_or_else(|| Error::MissingBlock(block_num))?;
 
-            if prev_block.hash == block.parent_hash() {
+            if prev_block.hash == block.header.prev_blockhash {
                 log::trace!("🤖 {} Processing block {}", name, block_num);
-                block_processor
-                    .process(&block)
-                    .await
-                    .map(|evts| events.extend(evts))
-                    .map_err(Into::into)?;
+                block_processor.process(&block).await?;
                 log::trace!("✅ {} Finished Processing block", name);
             } else {
                 log::info!("❗️{} Detected fork - Preparing reorg", name);
@@ -207,6 +201,43 @@ impl Harvester {
             //instead of Hash (copied)
             *prev_block = block
         }
-        Ok(events)
+        Ok(())
+    }
+
+    // lifetime
+
+    pub fn handle(&self) -> CommandHandler {
+        CommandHandler {
+            sender: self.sender.clone(),
+            storage: self.block_processor.db_connection(),
+        }
+    }
+
+    pub fn to_boxed_task_fn(
+        self,
+    ) -> impl FnOnce(Shutdown, ShutdownComplete) -> BoxFuture<'static, ()> {
+        move |shutdown, shutdown_complete| self.run(shutdown, shutdown_complete).boxed()
+    }
+
+    pub async fn run(self, mut shutdown: Shutdown, _shutdown_complete: ShutdownComplete) {
+        let name = self.name.clone();
+        let handle = self.handle();
+        tokio::select! {
+            res = self.start() => {
+                match res {
+                    Ok(s) => s,
+                    Err(e)=>{
+                        // probably fatal error occurs
+                        panic!("{} processor stopped: {:?}", name, e)
+                    }
+                };
+            },
+
+            _ = shutdown.recv() => {
+                log::warn!("{} shutting down from signal", name);
+                let _ = handle.terminate().await;
+            }
+        }
+        log::trace!("{} stopped", name)
     }
 }

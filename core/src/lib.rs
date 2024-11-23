@@ -2,9 +2,9 @@ pub mod bitcoin;
 pub mod sqlx_postgres;
 
 use std::fmt::Debug;
-use std::hash::Hash;
 
 use async_trait::async_trait;
+use sqlx::PgPool;
 use tokio::sync::mpsc;
 
 #[derive(Debug)]
@@ -17,33 +17,37 @@ enum Command {
 }
 
 // handle `indexer scan-block —-from 123456 -—to 124456` from cli
-pub struct CommandHandler<S: HandlerStorage + Clone> {
+pub struct CommandHandler {
     sender: mpsc::Sender<Command>,
-    storage: S,
+    storage: HandlerStorage,
+}
+
+impl CommandHandler {
+    pub fn new(sender: mpsc::Sender<Command>, storage: HandlerStorage) -> Self {
+        Self { sender, storage }
+    }
+
+    pub async fn terminate(&self) -> anyhow::Result<()> {
+        self.sender
+            .send(Command::Terminate)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 // for db interaction
-#[async_trait]
-pub trait HandlerStorage {
-    type Error: std::error::Error;
+pub struct HandlerStorage {
+    pub conn: PgPool,
+}
 
-    type Address: Hash + Eq + Debug + Send + Sync + 'static;
+impl HandlerStorage {
+    pub async fn latest_commited_sequence(&self) -> Result<i64, anyhow::Error> {
+        todo!()
+    }
 
-    async fn commit_addresses(
-        &self,
-        addresses: impl Iterator<Item = &'async_trait (Self::Address, Option<String>)>
-            + Send
-            + 'async_trait,
-    ) -> Result<(), Self::Error>;
-
-    async fn commit_tokens(
-        &self,
-        addresses: impl Iterator<Item = &'async_trait Self::Address> + Send + 'async_trait,
-    ) -> Result<(), Self::Error>;
-
-    async fn latest_commited_sequence(&self) -> Result<i64, Self::Error>;
-
-    async fn latest_commited_block(&self) -> Result<u64, Self::Error>;
+    pub async fn latest_commited_block(&self) -> Result<u64, anyhow::Error> {
+        todo!()
+    }
 }
 
 // for calculate user balance

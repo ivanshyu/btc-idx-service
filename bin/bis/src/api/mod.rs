@@ -13,7 +13,7 @@ use sqlx::postgres::PgPool;
 
 #[derive(Clone)]
 pub struct ServiceConfig {
-    pub pg_pool: Arc<PgPool>,
+    pub pg_pool: PgPool,
 }
 
 impl ServiceConfig {

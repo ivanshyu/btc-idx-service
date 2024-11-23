@@ -1,26 +1,25 @@
 
 CREATE TABLE IF NOT EXISTS btc_blocks
 (
-    block_hash VARCHAR(66) PRIMARY KEY NOT NULL,
-    block_number BIGINT UNIQUE NOT NULL,
-    previous_block_hash VARCHAR(66),
+    hash VARCHAR(66) PRIMARY KEY NOT NULL,
+    number BIGINT UNIQUE NOT NULL,
+    previous_hash VARCHAR(66),
     timestamp TIMESTAMP NOT NULL,
     nonce BIGINT,
     version INT,
     difficulty NUMERIC
 );
 
-CREATE INDEX IF NOT EXISTS block_num_idx ON btc_blocks (block_number);
+CREATE INDEX IF NOT EXISTS block_num_idx ON btc_blocks (number);
 
 CREATE TABLE IF NOT EXISTS btc_transactions (
     txid VARCHAR(64) PRIMARY KEY NOT NULL,
     block_hash VARCHAR(66) NOT NULL,
     transaction_index INT NOT NULL,
-    version INT,
     lock_time BIGINT,
-    timestamp TIMESTAMP NOT NULL,
     is_coinbase BOOLEAN NOT NULL,
-    FOREIGN KEY (block_hash) REFERENCES btc_blocks(block_hash) ON DELETE CASCADE
+    version INT,
+    FOREIGN KEY (block_hash) REFERENCES btc_blocks(hash) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS btc_balances

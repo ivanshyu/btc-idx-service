@@ -45,7 +45,7 @@ pub struct SharedParams {
     /// Database connection
     #[clap(
         name = "db",
-        default_value = "postgres://postgres:123456@localhost:5432/postgres?sslmode=disable",
+        default_value = "postgres://postgres:123456@localhost:5432/btc_indexer?sslmode=disable",
         env = "BIS_POSTGRES"
     )]
     pub database_url: String,

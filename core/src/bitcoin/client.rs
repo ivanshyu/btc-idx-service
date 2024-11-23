@@ -12,6 +12,7 @@
 // };
 use crate::bitcoin::types::BlockInfo;
 use crate::sqlx_postgres::bitcoin::{self as db};
+use crate::HandlerStorage;
 
 use std::collections::{HashMap, HashSet};
 use std::convert::{Into, TryInto};
@@ -22,13 +23,16 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use atb_cli::once_cell::sync::OnceCell;
 use atb_types::Utc;
+use bigdecimal::BigDecimal;
 use bitcoin::block::Bip34Error;
+use bitcoin::BlockHash;
 use bitcoincore_rpc::bitcoin::Block;
 use bitcoincore_rpc::{Auth, Client as RpcClient, Error as RpcError, RpcApi};
 use itertools::Itertools;
 use lazy_static::__Deref;
-use num_traits::Zero;
+use num_traits::{FromPrimitive, Zero};
 use serde::Serialize;
+use sqlx::types::chrono::TimeZone;
 use sqlx::{PgConnection, PgPool};
 
 // pub type Handle = crate::harvester::Handle<Processor, StorageHandle<DefaultProvider>>;
@@ -66,6 +70,12 @@ impl Client {
         rpc_user: Option<&str>,
         rpc_pwd: Option<&str>,
     ) -> Result<Self, Error> {
+        log::info!(
+            "Connecting to Bitcoin node: {}, user: {:?}/{:?}",
+            url,
+            rpc_user,
+            rpc_pwd
+        );
         let auth = match (rpc_user, rpc_pwd) {
             (Some(user), Some(pwd)) => Auth::UserPass(user.to_string(), pwd.to_string()),
             _ => Auth::None,
@@ -83,18 +93,16 @@ impl Client {
         if block.txdata.is_empty() {
             return Ok(Some(BlockInfo {
                 hash: block.block_hash(),
-                parent_hash: block.header.prev_blockhash,
+                header: block.header,
                 number: block.bip34_block_height()?,
-                time: block.header.time,
                 transactions: Vec::new(),
             }));
         }
 
         let mut block_info = BlockInfo {
             hash: block.block_hash(),
-            parent_hash: block.header.prev_blockhash,
+            header: block.header,
             number: block.bip34_block_height()?,
-            time: block.header.time,
             transactions: Vec::new(),
         };
 
@@ -115,6 +123,21 @@ impl Client {
         let tip = (&*self.inner).get_block_count()?;
         Ok(tip)
     }
+
+    pub async fn scan_block(&self, number: Option<u64>) -> Result<Option<BlockInfo>, Error> {
+        let block = match number {
+            Some(num) => {
+                let hash = self.inner.get_block_hash(num)?;
+                self.inner.get_block(&hash)?
+            }
+            _ => {
+                let num = self.inner.get_block_count()?;
+                let hash = self.inner.get_block_hash(num)?;
+                self.inner.get_block(&hash)?
+            }
+        };
+        self.process_bitcoin_block_to_block_info(block).await
+    }
 }
 
 impl Debug for Client {
@@ -131,16 +154,63 @@ pub struct Processor {
 
 impl Processor {
     pub async fn new(conn: PgPool, provider: Arc<Client>) -> Result<Self, Error> {
-        let current_sequence = db::get_latest_sequence_id(&conn).await? + 1;
-
+        // let current_sequence = db::get_latest_sequence_id(&conn).await? + 1;
+        let current_sequence = 0;
         Ok(Self {
             conn,
             provider,
             current_sequence,
         })
     }
-}
 
+    async fn is_processed(&self, block_hash: &BlockHash) -> Result<bool, Error> {
+        db::has_block(&self.conn, block_hash)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn process(&mut self, block: &BlockInfo) -> Result<(), Error> {
+        let mut db_tx = self.conn.begin().await?;
+
+        let mut sequence_id = self.current_sequence;
+
+        db::upsert_block(
+            &mut *db_tx,
+            &block.hash,
+            &block.header.prev_blockhash,
+            block.number,
+            Utc.timestamp(i64::from(block.header.time), 0),
+            &BigDecimal::from(block.header.nonce),
+            block.header.version.to_consensus(),
+            &BigDecimal::from_f64(block.header.difficulty_float()).unwrap_or_default(),
+        )
+        .await?;
+
+        for (idx, tx) in block.transactions.iter().enumerate() {
+            db::upsert_transaction(
+                &mut *db_tx,
+                &tx.compute_txid(),
+                &block.hash,
+                idx as i32,
+                &BigDecimal::from(tx.lock_time.to_consensus_u32()),
+                tx.is_coinbase(),
+                tx.version.0,
+            )
+            .await?;
+        }
+
+        db_tx.commit().await?;
+        self.current_sequence = sequence_id;
+
+        Ok(())
+    }
+
+    pub fn db_connection(&self) -> HandlerStorage {
+        HandlerStorage {
+            conn: self.conn.clone(),
+        }
+    }
+}
 // #[async_trait]
 // impl<E> BlockProcessor for Processor<E>
 // where

@@ -27,6 +27,7 @@ pub async fn create_database(uri: &str) -> sqlx::Result<()> {
     use sqlx::any::Any;
     use sqlx::migrate::MigrateDatabase;
 
+    log::info!("Creating database: {}", uri);
     sqlx::any::install_default_drivers();
     if !Any::database_exists(uri).await? {
         Any::create_database(uri).await

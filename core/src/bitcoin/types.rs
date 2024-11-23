@@ -1,5 +1,5 @@
 use bigdecimal::BigDecimal;
-use bitcoin::{address::NetworkUnchecked, hash_types::Txid, Address, OutPoint};
+use bitcoin::{address::NetworkUnchecked, block, hash_types::Txid, Address, OutPoint};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -74,9 +74,8 @@ impl TryFrom<i16> for Action {
 }
 
 pub struct BlockInfo {
+    pub header: block::Header,
     pub hash: bitcoin::BlockHash,
-    pub parent_hash: bitcoin::BlockHash,
     pub number: u64,
-    pub time: u32,
     pub transactions: Vec<bitcoin::Transaction>,
 }

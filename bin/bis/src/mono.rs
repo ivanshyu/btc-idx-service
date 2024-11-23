@@ -4,7 +4,7 @@ use crate::{
     config::Config,
 };
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use actix_web::rt::System;
 use atb_cli::{
@@ -12,9 +12,15 @@ use atb_cli::{
     Environment,
 };
 use atb_tokio_ext::TaskService;
-use bis_core::sqlx_postgres::connect_and_migrate;
+use bis_core::{
+    bitcoin::{
+        client::{Client, Processor},
+        harvester::{self, Harvester},
+    },
+    sqlx_postgres::connect_and_migrate,
+};
 use bitcoincore_rpc::{json, Auth};
-use bitcoincore_rpc::{Client, RpcApi};
+use bitcoincore_rpc::{Client as InnerClient, RpcApi};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
 
 #[derive(Parser, Debug, Clone)]
@@ -72,13 +78,31 @@ pub async fn build_service_config(
     debug: bool,
 ) -> anyhow::Result<ServiceConfig> {
     log::info!("Configuring bitcoin");
-    let pg_pool = connect_and_migrate(database_url, 5).await?.into();
+    let pg_pool: PgPool = connect_and_migrate(database_url, 5).await?.into();
 
-    // let (harvester, provider) = new_btc_harvester(store.clone(), env, "bitcoin").await?;
-    // let handle = harvester.handle();
-    // task_service.add_task(harvester.to_boxed_task_fn());
-    // 创建 RPC 客户端
-    let rpc_client = Client::new("http://localhost:18332", Auth::None).unwrap();
+    let pg_pool_cloned = pg_pool.clone();
+
+    let client = Client::new(
+        "bitcoin client".to_owned(),
+        "http://localhost:18443",
+        Some("user"),
+        Some("password"),
+    )?;
+
+    let client = Arc::new(client);
+
+    let processor = Processor::new(pg_pool_cloned, client.clone()).await?;
+
+    let harvester = Harvester::new(
+        client.clone(),
+        processor,
+        None,
+        None,
+        1000,
+        "bitcoin harvester".to_owned(),
+    );
+
+    task_service.add_task(harvester.to_boxed_task_fn());
 
     Ok(ServiceConfig { pg_pool })
 }
