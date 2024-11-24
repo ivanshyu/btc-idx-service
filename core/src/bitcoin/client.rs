@@ -1,8 +1,9 @@
-use crate::bitcoin::types::BlockInfo;
+use crate::bitcoin::types::{BlockInfo, BtcUtxoInfo};
 use crate::rpc_client::{self, BitcoinRpcClient, RpcError};
 use crate::sqlx_postgres::bitcoin::{self as db};
 use crate::HandlerStorage;
 
+use std::collections::HashMap;
 use std::convert::Into;
 use std::fmt::Debug;
 use std::iter::FromIterator;
@@ -10,9 +11,8 @@ use std::sync::Arc;
 
 use atb_types::Utc;
 use bigdecimal::BigDecimal;
-use bitcoin::block::{Bip34Error, Header, Version};
+use bitcoin::blockdata::transaction::OutPoint;
 use bitcoin::BlockHash;
-use bitcoincore_rpc::{bitcoin::Block, json::GetBlockResult};
 use num_traits::FromPrimitive;
 use sqlx::types::chrono::TimeZone;
 use sqlx::{PgConnection, PgPool};
@@ -30,9 +30,6 @@ pub enum Error {
 
     #[error("Account Balance Underflow")]
     BalanceUnderflow,
-
-    #[error("BIP34 Error: {0}")]
-    Bip34(#[from] Bip34Error),
 
     /// Other Error
     #[error("Other Error: {0}")]
@@ -170,7 +167,7 @@ impl Processor {
         let mut sequence_id = self.current_sequence;
 
         // log::info!("Processing block {:?}", &block);
-
+        // TODO: check the block is confirmed
         db::upsert_block(
             &mut *db_tx,
             &block.header.hash,
@@ -183,6 +180,8 @@ impl Processor {
         )
         .await?;
 
+        let mut outpoints = Vec::new();
+
         for (idx, tx) in block.body.txdata.iter().enumerate() {
             db::upsert_transaction(
                 &mut *db_tx,
@@ -194,7 +193,17 @@ impl Processor {
                 tx.version.0,
             )
             .await?;
+            // First pass, get all vins
+            for txin in &tx.input {
+                outpoints.push(&txin.previous_output);
+            }
         }
+
+        let mut relevant_utxos: HashMap<OutPoint, BtcUtxoInfo> = db::get_relevant_utxos(&outpoints)
+            .await?
+            .into_iter()
+            .map(|info| (info.get_out_point(), info))
+            .collect();
 
         db_tx.commit().await?;
         self.current_sequence = sequence_id;

@@ -7,7 +7,6 @@ use super::{
 use crate::{Command, CommandHandler};
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
-use bitcoincore_rpc::json::{GetBlockHeaderResult, GetBlockResult};
 use futures::FutureExt;
 use futures_core::future::BoxFuture;
 use tokio::{sync::mpsc, time::sleep};

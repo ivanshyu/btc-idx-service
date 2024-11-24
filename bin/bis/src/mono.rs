@@ -7,21 +7,16 @@ use crate::{
 use std::{path::PathBuf, sync::Arc};
 
 use actix_web::rt::System;
-use atb_cli::{
-    clap::{self, Parser, ValueHint},
-    Environment,
-};
+use atb_cli::clap::{self, Parser, ValueHint};
 use atb_tokio_ext::TaskService;
 use bis_core::{
     bitcoin::{
         client::{Client, Processor},
-        harvester::{self, Harvester},
+        harvester::Harvester,
     },
     sqlx_postgres::connect_and_migrate,
 };
-use bitcoincore_rpc::{json, Auth};
-use bitcoincore_rpc::{Client as InnerClient, RpcApi};
-use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
+use sqlx::PgPool;
 
 #[derive(Parser, Debug, Clone)]
 pub struct Opts {

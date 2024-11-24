@@ -126,10 +126,11 @@ impl BitcoinRpcClient {
         };
 
         if response.status().is_success() {
-            let rpc_response = response.json::<RpcResponse<R>>().await?;
-            Ok(rpc_response)
+            response.json::<RpcResponse<R>>().await.map_err(Into::into)
+        } else if let Err(err) = response.error_for_status() {
+            Err(err.into())
         } else {
-            Err(response.error_for_status().unwrap_err().into())
+            Err(anyhow::anyhow!("unknown err").into())
         }
     }
 
