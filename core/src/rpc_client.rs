@@ -134,47 +134,34 @@ impl BitcoinRpcClient {
     }
 
     pub async fn get_block_count(&self) -> Result<usize, Error> {
-        let response = self.request::<usize>("getblockcount", &[]).await?;
-        if let Some(result) = response.result {
-            Ok(result)
-        } else {
-            Err(response.error.unwrap().into())
-        }
+        self.request::<usize>("getblockcount", &[]).await?.into()
     }
 
+    // #NOTE: get hex encoded block, and then deserialize to domain type
     pub async fn get_block(&self, hash: &BlockHash) -> Result<Block, Error> {
-        let response = self
-            .request::<String>("getblock", &[Self::into_json(hash)?, 0.into()])
-            .await?;
-        if let Some(result) = response.result {
-            encode::deserialize_hex(&result).map_err(|e| anyhow!(e).into())
-        } else {
-            Err(anyhow::anyhow!("{:?}", response.error).into())
-        }
+        self.request::<String>("getblock", &[Self::into_json(hash)?, 0.into()])
+            .await
+            .map_err(Error::from)
+            .and_then(|r| {
+                r.result
+                    .ok_or_else(|| anyhow::anyhow!("missing result").into())
+            })
+            .and_then(|s| encode::deserialize_hex(&s).map_err(|e| anyhow!(e).into()))
+            .into()
     }
 
     pub async fn get_block_header(
         &self,
         hash: &BlockHash,
     ) -> Result<json::GetBlockHeaderResult, Error> {
-        let response = self
-            .request::<json::GetBlockHeaderResult>("getblockheader", &[Self::into_json(hash)?])
-            .await?;
-        if let Some(result) = response.result {
-            Ok(result)
-        } else {
-            Err(anyhow::anyhow!("{:?}", response.error).into())
-        }
+        self.request::<json::GetBlockHeaderResult>("getblockheader", &[Self::into_json(hash)?])
+            .await?
+            .into()
     }
 
     pub async fn get_block_hash(&self, height: usize) -> Result<BlockHash, Error> {
-        let response = self
-            .request::<BlockHash>("getblockhash", &[height.into()])
-            .await?;
-        if let Some(result) = response.result {
-            Ok(result)
-        } else {
-            Err(anyhow::anyhow!("{:?}", response.error).into())
-        }
+        self.request::<BlockHash>("getblockhash", &[height.into()])
+            .await?
+            .into()
     }
 }
