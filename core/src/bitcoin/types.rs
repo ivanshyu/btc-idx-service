@@ -1,5 +1,6 @@
 use bigdecimal::BigDecimal;
-use bitcoin::{address::NetworkUnchecked, block, hash_types::Txid, Address, OutPoint};
+use bitcoin::{address::NetworkUnchecked, block, hash_types::Txid, Address, Block, OutPoint};
+use bitcoincore_rpc::json::{GetBlockHeaderResult, GetBlockResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -73,9 +74,8 @@ impl TryFrom<i16> for Action {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct BlockInfo {
-    pub header: block::Header,
-    pub hash: bitcoin::BlockHash,
-    pub number: u64,
-    pub transactions: Vec<bitcoin::Transaction>,
+    pub header: GetBlockHeaderResult,
+    pub body: Block,
 }

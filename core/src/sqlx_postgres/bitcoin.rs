@@ -42,8 +42,8 @@ where
 pub async fn upsert_block<'e, T>(
     conn: T,
     hash: &BlockHash,
-    prev_hash: &BlockHash,
-    number: u64,
+    prev_hash: Option<&BlockHash>,
+    number: usize,
     timestamp: DateTime,
     nonce: &BigDecimal,
     version: i32,
@@ -52,17 +52,17 @@ pub async fn upsert_block<'e, T>(
 where
     T: Executor<'e, Database = Postgres>,
 {
+    log::info!("upsert block, {}", number);
     sqlx::query(
         r#"
-            INSERT INTO blocks (hash, number, previous_hash, timestamp, nonce, version, difficulty) 
+            INSERT INTO btc_blocks (hash, number, previous_hash, timestamp, nonce, version, difficulty) 
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT ON CONSTRAINT blocks_pkey 
-            DO UPDATE SET hash = $1
+            ON CONFLICT DO NOTHING
         "#,
     )
-    .bind(format!("{:?}", hash))
-    .bind(BigDecimal::from(number))
-    .bind(format!("{:?}", prev_hash))
+    .bind(format!("{:x}", hash.as_raw_hash()))
+    .bind(BigDecimal::from(number as u32))
+    .bind(prev_hash.map(|h| format!("{:x}", h.as_raw_hash())).as_deref())
     .bind(timestamp)
     .bind(nonce)
     .bind(version)
@@ -86,14 +86,14 @@ where
 {
     sqlx::query(
         r#"
-            INSERT INTO btc_transactions (txid, block_hash, transaction_index, version, lock_time, is_coinbase, version)
+            INSERT INTO btc_transactions (txid, block_hash, transaction_index, lock_time, is_coinbase, version)
             VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT ON CONSTRAINT transactions_pkey
+            ON CONFLICT ON CONSTRAINT btc_transactions_pkey
             DO UPDATE SET block_hash = $1
         "#,
     )
     .bind(format!("{:?}", txid))
-    .bind(format!("{:?}", block_hash))
+    .bind(format!("{:x}", block_hash.as_raw_hash()))
     .bind(transaction_index)
     .bind(lock_time)
     .bind(is_coinbase)

@@ -7,6 +7,7 @@ use super::{
 use crate::{Command, CommandHandler};
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
+use bitcoincore_rpc::json::{GetBlockHeaderResult, GetBlockResult};
 use futures::FutureExt;
 use futures_core::future::BoxFuture;
 use tokio::{sync::mpsc, time::sleep};
@@ -17,7 +18,7 @@ pub enum Error {
     Sqlx(#[from] sqlx::error::Error),
 
     #[error("Block that should exist doesn't, according to RPC {0}")]
-    MissingBlock(u64),
+    MissingBlock(usize),
 
     #[error("Invalid desired height")]
     InvalidDesiredHeight,
@@ -34,8 +35,8 @@ pub struct Harvester {
     receiver: Option<mpsc::Receiver<Command>>,
     client: Arc<Client>,
     block_processor: Processor,
-    start_height: Option<u64>,
-    end_height: Option<u64>,
+    start_height: Option<usize>,
+    end_height: Option<usize>,
     sleep_ms: u64,
     name: String,
     last_processed_block: Option<BlockInfo>,
@@ -46,8 +47,8 @@ impl Harvester {
     pub fn new(
         client: Arc<Client>,
         block_processor: Processor,
-        start_height: Option<u64>,
-        end_height: Option<u64>,
+        start_height: Option<usize>,
+        end_height: Option<usize>,
         sleep_ms: u64,
         name: String,
     ) -> Self {
@@ -87,12 +88,12 @@ impl Harvester {
                             self.end_height = Some(to);
                         },
                         Some(Command::Pause) => {
-                            self.end_height = self.last_processed_block.as_ref().map(|b|b.number);
+                            self.end_height = self.last_processed_block.as_ref().map(|b|b.header.height);
                         },
                         Some(Command::AutoScan) => {
                             self.end_height = None;
                             self.start_height = if let Some(b) = self.last_processed_block.as_ref(){
-                                Some(b.number + 1)
+                                Some((b.header.height + 1))
                             }else {
                                 Some(0)
                             };
@@ -129,6 +130,7 @@ impl Harvester {
         } else {
             self.client
                 .get_tip_number()
+                .await
                 .map_err(|e| Error::Client(e.into()))?
         };
 
@@ -144,8 +146,7 @@ impl Harvester {
                     .client
                     .scan_block(Some(start_num))
                     .await
-                    .map_err(|e| Error::Client(e.into()))?
-                    .expect("desired_height is always <= tip_height. qed");
+                    .map_err(|e| Error::Client(e.into()))?;
 
                 (self.last_processed_block.insert(start_block), true)
             }
@@ -169,32 +170,37 @@ impl Harvester {
         client: &Client,
         block_processor: &mut Processor,
         prev_block: &mut BlockInfo,
-        desired_height: u64,
+        desired_height: usize,
         process_first: bool,
     ) -> Result<(), Error> {
         if process_first {
-            log::trace!("🤖 {} Processing first block {}", name, prev_block.number);
+            log::trace!(
+                "🤖 {} Processing first block {}",
+                name,
+                prev_block.header.height
+            );
             block_processor.process(prev_block).await?;
             log::trace!("✅ {} Finished Processing first block", name);
         }
 
         // Otherwise process until we reach the head
-        while prev_block.number < desired_height {
-            let block_num = prev_block.number + 1;
+        while prev_block.header.height < desired_height {
+            let block_num = prev_block.header.height + 1;
 
             let block = client
                 .scan_block(Some(block_num))
                 .await
-                .map_err(|e| Error::Client(e.into()))?
-                .ok_or_else(|| Error::MissingBlock(block_num))?;
+                .map_err(|e| Error::Client(e.into()))?;
 
-            if prev_block.hash == block.header.prev_blockhash {
-                log::trace!("🤖 {} Processing block {}", name, block_num);
-                block_processor.process(&block).await?;
-                log::trace!("✅ {} Finished Processing block", name);
-            } else {
-                log::info!("❗️{} Detected fork - Preparing reorg", name);
-                // Self::handle_reorg(name, client, block_processor, block.clone()).await
+            if let Some(prev) = block.header.previous_block_hash {
+                if prev_block.header.hash == prev {
+                    log::trace!("🤖 {} Processing block {}", name, block_num);
+                    block_processor.process(&block).await?;
+                    log::trace!("✅ {} Finished Processing block", name);
+                } else {
+                    log::info!("❗️{} Detected fork - Preparing reorg", name);
+                    // Self::handle_reorg(name, client, block_processor, block.clone()).await
+                }
             }
 
             //Just store the whole Block type, convert the interface to return &Hash

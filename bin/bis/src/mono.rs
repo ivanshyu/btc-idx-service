@@ -38,12 +38,18 @@ pub struct Opts {
         value_hint = ValueHint::FilePath
     )]
     config_file: Option<PathBuf>,
+
+    #[clap(long, env = "BTCUSER")]
+    rpc_user: Option<String>,
+
+    #[clap(long, env = "BTCUSERPASSWORD")]
+    rpc_pwd: Option<String>,
 }
 
 pub fn run(shared_params: SharedParams, opts: Opts) -> anyhow::Result<()> {
     let config_file = opts
         .config_file
-        .unwrap_or_else(|| "./deployment/config_dev.toml".into());
+        .unwrap_or_else(|| "./deployment/config.toml".into());
     let config = Config::from_file(&config_file)
         .map_err(|e| anyhow::anyhow!("failed to load configuration file {config_file:?}: {e}"))?;
 
@@ -58,8 +64,8 @@ pub fn run(shared_params: SharedParams, opts: Opts) -> anyhow::Result<()> {
         &mut server,
         config,
         &shared_params.database_url,
-        atb_cli::process_info().env(),
-        atb_cli::debug(),
+        opts.rpc_user,
+        opts.rpc_pwd,
     ))?;
 
     // Run services to completion
@@ -74,20 +80,22 @@ pub async fn build_service_config(
     task_service: &mut TaskService,
     config: crate::config::Config,
     database_url: &str,
-    env: &Environment,
-    debug: bool,
+    rpc_user: Option<String>,
+    rpc_pwd: Option<String>,
 ) -> anyhow::Result<ServiceConfig> {
     log::info!("Configuring bitcoin");
     let pg_pool: PgPool = connect_and_migrate(database_url, 5).await?.into();
 
     let pg_pool_cloned = pg_pool.clone();
 
+    log::info!("Connected to bitcoin rpc: {}", &config.provider_url);
+
     let client = Client::new(
         "bitcoin client".to_owned(),
-        "http://localhost:18443",
-        Some("user"),
-        Some("password"),
-    )?;
+        config.provider_url,
+        rpc_user,
+        rpc_pwd,
+    );
 
     let client = Arc::new(client);
 
@@ -98,7 +106,7 @@ pub async fn build_service_config(
         processor,
         None,
         None,
-        1000,
+        config.poll_frequency_ms,
         "bitcoin harvester".to_owned(),
     );
 

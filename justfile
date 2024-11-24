@@ -52,7 +52,7 @@ local-dev:
 	just local-pg local-testnets
 
 local-mono:
-    RUST_BACKTRACE=1 RUST_LOG=info,sqlx=info cargo run --bin bis scan-block
+    RUST_BACKTRACE=1 RUST_LOG=info,sqlx=warn,reqwest=debug cargo run --bin bis scan-block
 
 local-pg:
 	docker compose -f ./deployment/docker-compose.yaml up -d postgres adminer 

@@ -1,4 +1,5 @@
 pub mod bitcoin;
+pub mod rpc_client;
 pub mod sqlx_postgres;
 
 use std::fmt::Debug;
@@ -12,7 +13,7 @@ enum Command {
     Terminate,
     Pause,
     // from , to
-    ScanBlock(u64, u64),
+    ScanBlock(usize, usize),
     AutoScan,
 }
 

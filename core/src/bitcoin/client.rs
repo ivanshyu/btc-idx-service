@@ -1,46 +1,26 @@
-// use super::httpapi::{self, *};
-// use super::types::{
-//     Block, BlockInfo, Event, EventData, Filter, GetBlockResponse, Log, NoCustom, ParsedLog,
-//     Receipt, ToEventData, TransferEvent, TransferValue, TronAddress,
-// };
-
-// use crate::common::{Action, ChainInfo, TransactionStatus};
-
-// use crate::harvester::{
-//     BlockInfo as BlockInfoT, BlockProcessor, Client as ClientT, Projection,
-//     StorageHandle as StorageHandleT,
-// };
 use crate::bitcoin::types::BlockInfo;
+use crate::rpc_client::{self, BitcoinRpcClient, RpcError};
 use crate::sqlx_postgres::bitcoin::{self as db};
 use crate::HandlerStorage;
 
-use std::collections::{HashMap, HashSet};
-use std::convert::{Into, TryInto};
+use std::convert::Into;
 use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use atb_cli::once_cell::sync::OnceCell;
 use atb_types::Utc;
 use bigdecimal::BigDecimal;
-use bitcoin::block::Bip34Error;
+use bitcoin::block::{Bip34Error, Header, Version};
 use bitcoin::BlockHash;
-use bitcoincore_rpc::bitcoin::Block;
-use bitcoincore_rpc::{Auth, Client as RpcClient, Error as RpcError, RpcApi};
-use itertools::Itertools;
-use lazy_static::__Deref;
-use num_traits::{FromPrimitive, Zero};
-use serde::Serialize;
+use bitcoincore_rpc::{bitcoin::Block, json::GetBlockResult};
+use num_traits::FromPrimitive;
 use sqlx::types::chrono::TimeZone;
 use sqlx::{PgConnection, PgPool};
-
-// pub type Handle = crate::harvester::Handle<Processor, StorageHandle<DefaultProvider>>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Rpc error: `{0}`")]
-    Rpc(#[from] RpcError),
+    Rpc(#[from] rpc_client::Error),
 
     #[error("Sqlx error: {0}")]
     Sqlx(#[from] sqlx::Error),
@@ -60,83 +40,98 @@ pub enum Error {
 }
 pub struct Client {
     name: String,
-    inner: Arc<RpcClient>,
+    inner: Arc<BitcoinRpcClient>,
 }
 
 impl Client {
     pub fn new(
         name: String,
-        url: &str,
-        rpc_user: Option<&str>,
-        rpc_pwd: Option<&str>,
-    ) -> Result<Self, Error> {
+        url: String,
+        rpc_user: Option<String>,
+        rpc_pwd: Option<String>,
+    ) -> Self {
         log::info!(
             "Connecting to Bitcoin node: {}, user: {:?}/{:?}",
             url,
             rpc_user,
             rpc_pwd
         );
-        let auth = match (rpc_user, rpc_pwd) {
-            (Some(user), Some(pwd)) => Auth::UserPass(user.to_string(), pwd.to_string()),
-            _ => Auth::None,
-        };
-        Ok(Self {
+
+        let rpc_client = BitcoinRpcClient::new(url, rpc_user, rpc_pwd);
+        Self {
             name,
-            inner: Arc::new(RpcClient::new(url, auth)?),
-        })
+            inner: Arc::new(rpc_client),
+        }
     }
 
-    async fn process_bitcoin_block_to_block_info(
-        &self,
-        block: Block,
-    ) -> Result<Option<BlockInfo>, Error> {
-        if block.txdata.is_empty() {
-            return Ok(Some(BlockInfo {
-                hash: block.block_hash(),
-                header: block.header,
-                number: block.bip34_block_height()?,
-                transactions: Vec::new(),
-            }));
-        }
+    // async fn (
+    //     &self,
+    //     block: GetBlockResult,
+    // ) -> Result<Option<BlockInfo>, Error> {
+    //     let mut block_info = BlockInfo {
+    //         hash: block.hash,
+    //         header: Header {
+    //             version: Version::from_consensus(block.version),
+    //             prev_blockhash: block.previousblockhash.unwrap_or_default(),
+    //             merkle_root: block.merkleroot,
+    //             time: block.time as u32,
+    //             bits: CompactTarget::from_hex(&block.bits),
+    //             nonce: block.nonce,
+    //         },
+    //         number: block.height,
+    //         transactions: Vec::new(),
+    //     };
 
-        let mut block_info = BlockInfo {
-            hash: block.block_hash(),
-            header: block.header,
-            number: block.bip34_block_height()?,
-            transactions: Vec::new(),
-        };
+    //     if block.tx.is_empty() {
+    //         return Ok(Some(BlockInfo {
+    //             hash: block.hash,
+    //             header: block.header,
+    //             number: block.height,
+    //             transactions: Vec::new(),
+    //         }));
+    //     }
 
-        for tx in block.txdata {
-            // Process Bitcoin transactions
-            // Add your Bitcoin-specific transaction processing logic here
-            block_info.transactions.push(tx);
-        }
+    //     for tx in block.txdata {
+    //         // Process Bitcoin transactions
+    //         // Add your Bitcoin-specific transaction processing logic here
+    //         block_info.transactions.push(tx);
+    //     }
 
-        Ok(Some(block_info))
-    }
+    //     Ok(Some(block_info))
+    // }
 
-    pub fn inner(&self) -> &RpcClient {
+    pub fn inner(&self) -> &BitcoinRpcClient {
         &self.inner
     }
 
-    pub fn get_tip_number(&self) -> Result<u64, Error> {
-        let tip = (&*self.inner).get_block_count()?;
-        Ok(tip)
+    pub async fn get_tip_number(&self) -> Result<usize, Error> {
+        (&*self.inner).get_block_count().await.map_err(Into::into)
     }
 
-    pub async fn scan_block(&self, number: Option<u64>) -> Result<Option<BlockInfo>, Error> {
-        let block = match number {
+    pub async fn scan_block(&self, number: Option<usize>) -> Result<BlockInfo, Error> {
+        let (header, block) = match number {
             Some(num) => {
-                let hash = self.inner.get_block_hash(num)?;
-                self.inner.get_block(&hash)?
+                let hash = self.inner.get_block_hash(num).await?;
+
+                (
+                    self.inner.get_block_header(&hash).await?,
+                    self.inner.get_block(&hash).await?,
+                )
             }
             _ => {
-                let num = self.inner.get_block_count()?;
-                let hash = self.inner.get_block_hash(num)?;
-                self.inner.get_block(&hash)?
+                let num = self.inner.get_block_count().await?;
+                let hash = self.inner.get_block_hash(num).await?;
+
+                (
+                    self.inner.get_block_header(&hash).await?,
+                    self.inner.get_block(&hash).await?,
+                )
             }
         };
-        self.process_bitcoin_block_to_block_info(block).await
+        Ok(BlockInfo {
+            header,
+            body: block,
+        })
     }
 }
 
@@ -174,23 +169,25 @@ impl Processor {
 
         let mut sequence_id = self.current_sequence;
 
+        // log::info!("Processing block {:?}", &block);
+
         db::upsert_block(
             &mut *db_tx,
-            &block.hash,
-            &block.header.prev_blockhash,
-            block.number,
-            Utc.timestamp(i64::from(block.header.time), 0),
+            &block.header.hash,
+            block.header.previous_block_hash.as_ref(),
+            block.header.height,
+            Utc.timestamp(block.header.time as i64, 0),
             &BigDecimal::from(block.header.nonce),
             block.header.version.to_consensus(),
-            &BigDecimal::from_f64(block.header.difficulty_float()).unwrap_or_default(),
+            &BigDecimal::from_f64(block.header.difficulty).unwrap_or_default(),
         )
         .await?;
 
-        for (idx, tx) in block.transactions.iter().enumerate() {
+        for (idx, tx) in block.body.txdata.iter().enumerate() {
             db::upsert_transaction(
                 &mut *db_tx,
                 &tx.compute_txid(),
-                &block.hash,
+                &block.header.hash,
                 idx as i32,
                 &BigDecimal::from(tx.lock_time.to_consensus_u32()),
                 tx.is_coinbase(),

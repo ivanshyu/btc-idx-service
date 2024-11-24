@@ -12,7 +12,7 @@ fn main() -> anyhow::Result<()> {
     Cli::set_globals(&cli.base);
 
     init_logger(
-        "info,sqlx=warn",
+        "debug,sqlx=warn",
         cli.base.debug || atb_cli::process_info().env().dev(),
     );
     log::info!("{:?}", atb_cli::process_info());
