@@ -199,11 +199,12 @@ impl Processor {
             }
         }
 
-        let mut relevant_utxos: HashMap<OutPoint, BtcUtxoInfo> = db::get_relevant_utxos(&outpoints)
-            .await?
-            .into_iter()
-            .map(|info| (info.get_out_point(), info))
-            .collect();
+        let mut relevant_utxos: HashMap<OutPoint, BtcUtxoInfo> =
+            db::get_relevant_utxos(&mut *db_tx, &outpoints)
+                .await?
+                .into_iter()
+                .map(|info| (info.get_out_point(), info))
+                .collect();
 
         db_tx.commit().await?;
         self.current_sequence = sequence_id;

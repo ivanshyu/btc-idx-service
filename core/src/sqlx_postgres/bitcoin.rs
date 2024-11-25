@@ -1,11 +1,46 @@
+use crate::bitcoin::types::BtcUtxoInfo;
+
+use std::str::FromStr;
+
+use anyhow::anyhow;
 use atb_types::DateTime;
-use bitcoin::BlockHash;
+use bigdecimal::num_bigint::BigUint;
+use bitcoin::{BlockHash, OutPoint, Txid};
+use num_traits::{FromPrimitive, ToPrimitive};
 use sqlx::{
     migrate::Migrator,
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
     types::{BigDecimal, Json},
     Error as SqlxError, Executor, PgPool, Postgres, Row,
 };
+
+impl TryFrom<PgRow> for BtcUtxoInfo {
+    type Error = sqlx::Error;
+    fn try_from(row: PgRow) -> Result<Self, Self::Error> {
+        let txid: &str = row.get(2);
+        let txid = Txid::from_str(txid).map_err(|e| SqlxError::Decode(e.into()))?;
+
+        let vout = row.get::<i64, _>(3) as u32;
+
+        let amount: BigDecimal = row.get(4);
+
+        let spent_block = row
+            .get::<Option<BigDecimal>, _>(6)
+            .map(|bd| {
+                bd.to_u64()
+                    .ok_or_else(|| SqlxError::Decode("convert bigdecimal to u64 failed".into()))
+            })
+            .transpose()?;
+
+        Ok(BtcUtxoInfo {
+            owner: row.get(1),
+            txid,
+            vout,
+            amount,
+            spent_block,
+        })
+    }
+}
 
 pub async fn get_latest_sequence_id<'e, T>(conn: T) -> Result<i64, sqlx::Error>
 where
@@ -98,6 +133,210 @@ where
     .bind(lock_time)
     .bind(is_coinbase)
     .bind(version)
+    .execute(conn)
+    .await
+    .map(|_| ())
+}
+
+pub async fn create_utxo<'e, T>(
+    conn: T,
+    owner: &str,
+    txid: Txid,
+    vout: usize,
+    amount: &BigDecimal,
+    block_num: usize,
+) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    // Create id
+    let id = format!("{}:{}", txid, vout);
+
+    sqlx::query(
+        r#"
+        INSERT INTO btc_utxos
+        (id, address, txid, vout, amount, block_number)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+    )
+    .bind(id)
+    .bind(owner)
+    .bind(txid.to_string())
+    .bind(vout as i64)
+    .bind(amount)
+    .bind(BigDecimal::from(block_num as u32))
+    .execute(conn)
+    .await
+    .map(|_| ())
+}
+
+async fn get_utxos_at_block<'e, T>(
+    conn: T,
+    block_num: usize,
+) -> Result<Vec<BtcUtxoInfo>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    let block_num = BigDecimal::from_u32(block_num as u32);
+
+    sqlx::query(
+        r#"
+        SELECT id, address, txid, vout, amount, block_number, spent_block 
+        FROM btc_utxos
+        WHERE block_number = $1
+        "#,
+    )
+    .bind(block_num)
+    .try_map(BtcUtxoInfo::try_from)
+    .fetch_all(conn)
+    .await
+    .map_err(Into::into)
+}
+
+async fn get_utxos_spent_at_block<'e, T>(
+    conn: T,
+    block_num: u64,
+) -> Result<Vec<BtcUtxoInfo>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    let block_num = BigDecimal::from_u32(block_num as u32);
+
+    sqlx::query(
+        r#"
+        SELECT addr, txid, vout, amount, spent_block 
+        FROM btc_utxos
+        WHERE spent_block = $1
+        "#,
+    )
+    .bind(block_num)
+    .try_map(BtcUtxoInfo::try_from)
+    .fetch_all(conn)
+    .await
+    .map_err(Into::into)
+}
+
+async fn get_unspent_utxos_by_owner<'e, T>(
+    conn: T,
+    owner: &str,
+) -> Result<Vec<BtcUtxoInfo>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+        SELECT addr, txid, vout, amount, spent_block 
+        FROM btc_utxos
+        WHERE address = $1 AND spent_block IS NULL
+        "#,
+    )
+    .bind(owner)
+    .try_map(BtcUtxoInfo::try_from)
+    .fetch_all(conn)
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn get_relevant_utxos<'e, T>(
+    conn: T,
+    utxos: &[&OutPoint],
+) -> Result<Vec<BtcUtxoInfo>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    // We are manually creating the ids from the outpoints in case they decide to change their to_string()
+    let ids: Vec<String> = utxos
+        .iter()
+        .map(|x| format!("{}:{}", x.txid, x.vout))
+        .collect();
+
+    sqlx::query(
+        r#"
+        SELECT id, address, txid, vout, amount, block_number, spent_block 
+        FROM btc_utxos
+        WHERE id = ANY($1)
+        "#,
+    )
+    .bind(ids)
+    .try_map(BtcUtxoInfo::try_from)
+    .fetch_all(conn)
+    .await
+}
+
+pub async fn remove_utxo<'e, T>(conn: T, txid: Txid, vout: u32) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+            DELETE FROM btc_utxos
+            WHERE txid = $1 AND vout = $2
+        "#,
+    )
+    .bind(txid.to_string())
+    .bind(vout as i64)
+    .execute(conn)
+    .await
+    .map(|_| ())
+}
+
+async fn remove_utxos_since_block<'e, T>(conn: T, block_num: u64) -> Result<u64, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    let block_num = BigDecimal::from_u32(block_num as u32);
+
+    sqlx::query(
+        r#"
+            DELETE FROM btc_utxos
+            WHERE block_number >= $1
+        "#,
+    )
+    .bind(block_num)
+    .execute(conn)
+    .await
+    .map(|pg_done| pg_done.rows_affected())
+}
+
+async fn spend_utxo<'e, T>(
+    conn: T,
+    txid: Txid,
+    vout: u32,
+    block_num: u64,
+) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    let block_num = BigDecimal::from_u32(block_num as u32);
+
+    sqlx::query(
+        r#"
+            UPDATE btc_utxos
+            SET spent_block = $1
+            WHERE txid = $2 AND vout = $3
+        "#,
+    )
+    .bind(block_num)
+    .bind(txid.to_string())
+    .bind(vout as i64)
+    .execute(conn)
+    .await
+    .map(|_| ())
+}
+
+async fn unspend_utxo<'e, T>(conn: T, txid: Txid, vout: u32) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+            UPDATE btc_utxos
+            SET spent_block = NULL
+            WHERE txid = $1 AND vout = $2
+        "#,
+    )
+    .bind(txid.to_string())
+    .bind(vout as i64)
     .execute(conn)
     .await
     .map(|_| ())

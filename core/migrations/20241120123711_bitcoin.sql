@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS btc_utxos
     txid VARCHAR(64) NOT NULL REFERENCES btc_transactions(txid) ON DELETE CASCADE,
     vout BIGINT NOT NULL,
     amount NUMERIC NOT NULL,
-    block_number NUMERIC NOT NULL, 
+    block_number BIGINT NOT NULL, 
     -- If NULL, the UTXO is unspent
     spent_block NUMERIC,
     PRIMARY KEY(txid, vout)
