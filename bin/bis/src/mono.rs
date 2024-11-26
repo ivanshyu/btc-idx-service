@@ -4,7 +4,7 @@ use crate::{
     config::Config,
 };
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use actix_web::rt::System;
 use atb_cli::clap::{self, Parser, ValueHint};
@@ -16,7 +16,7 @@ use bis_core::{
     },
     sqlx_postgres::connect_and_migrate,
 };
-use bitcoin::Network;
+use bitcoin::{p2p::Magic, Network};
 use once_cell::sync::OnceCell;
 use sqlx::PgPool;
 
@@ -52,9 +52,9 @@ pub fn run(shared_params: SharedParams, opts: Opts) -> anyhow::Result<()> {
     let config = Config::from_file(&config_file)
         .map_err(|e| anyhow::anyhow!("failed to load configuration file {config_file:?}: {e}"))?;
 
-    let network = Network::from_magic(config.magic).unwrap();
+    let network = Network::from_core_arg(&config.magic).unwrap();
     BTC_NETWORK
-        .set(networkq)
+        .set(network)
         .expect("BTC_NETWORK should not be set");
 
     let rt = tokio::runtime::Builder::new_multi_thread()

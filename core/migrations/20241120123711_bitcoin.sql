@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS btc_utxos
 (
     -- id is a txid:vout string to batch query relevant utxos
     id VARCHAR(74) NOT NULL,
-    address VARCHAR(50) NOT NULL,
+    address VARCHAR(100) NOT NULL,
     txid VARCHAR(64) NOT NULL REFERENCES btc_transactions(txid) ON DELETE CASCADE,
     vout BIGINT NOT NULL,
     amount NUMERIC NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS btc_utxos
 CREATE INDEX IF NOT EXISTS btc_utxos_id_idx ON btc_utxos (spent_block, id);
 CREATE INDEX IF NOT EXISTS btc_utxos_block_num_idx ON btc_utxos (block_number);
 
-CREATE TABLE IF NOT EXISTS btc_wallet_events
+CREATE TABLE IF NOT EXISTS btc_p2tr_events
 (
     sequence_id BIGSERIAL PRIMARY KEY NOT NULL,
     block_number NUMERIC NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS btc_wallet_events
 );
 
 
-CREATE TABLE IF NOT EXISTS pending_btc_wallet_events
+CREATE TABLE IF NOT EXISTS pending_btc_p2tr_events
 (
     block_number NUMERIC NOT NULL,
     tx_hash VARCHAR(66) NOT NULL,
@@ -66,5 +66,5 @@ CREATE TABLE IF NOT EXISTS pending_btc_wallet_events
     action SMALLINT NOT NULL    
 );
 
-CREATE INDEX IF NOT EXISTS pending_btc_event_idx ON pending_btc_wallet_events (block_number);
-CREATE INDEX IF NOT EXISTS pending_btc_event_addr_idx ON pending_btc_wallet_events (address);
+CREATE INDEX IF NOT EXISTS pending_btc_event_idx ON pending_btc_p2tr_events (block_number);
+CREATE INDEX IF NOT EXISTS pending_btc_event_addr_idx ON pending_btc_p2tr_events (address);

@@ -9,7 +9,7 @@ pub struct Config {
     /// 0x0709110B(118034699) => Some(Network::Testnet),
     /// 0x40CF030A(1087308554) => Some(Network::Signet),
     /// 0xDAB5BFFA(3669344250) => Some(Network::Regtest),
-    pub magic: u32,
+    pub magic: String,
     pub provider_url: String,
     pub poll_frequency_ms: u64,
     pub start_block: Option<u64>,

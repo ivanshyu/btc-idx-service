@@ -1,21 +1,21 @@
-use crate::bitcoin::types::{BlockInfo, BtcUtxoInfo};
-use crate::rpc_client::{self, BitcoinRpcClient, RpcError};
+use crate::bitcoin::types::{Action, BlockInfo, BtcP2trEvent, BtcUtxoInfo};
+use crate::rpc_client::{self, BitcoinRpcClient};
 use crate::sqlx_postgres::bitcoin::{self as db};
 use crate::HandlerStorage;
 
 use std::collections::HashMap;
 use std::convert::Into;
 use std::fmt::Debug;
-use std::iter::FromIterator;
 use std::sync::Arc;
 
 use atb_types::Utc;
 use bigdecimal::BigDecimal;
+use bitcoin::address::FromScriptError;
 use bitcoin::blockdata::transaction::OutPoint;
 use bitcoin::{Address, BlockHash, Network};
 use num_traits::{FromPrimitive, Zero};
 use sqlx::types::chrono::TimeZone;
-use sqlx::{PgConnection, PgPool};
+use sqlx::PgPool;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -30,6 +30,9 @@ pub enum Error {
 
     #[error("Account Balance Underflow")]
     BalanceUnderflow,
+
+    #[error("Address from script error: {0}")]
+    AddressFromScript(#[from] FromScriptError),
 
     /// Other Error
     #[error("Other Error: {0}")]
@@ -171,14 +174,14 @@ impl Processor {
         let mut db_tx = self.conn.begin().await?;
 
         let mut sequence_id = self.current_sequence;
-
+        let block_num = block.header.height;
         // log::info!("Processing block {:?}", &block);
         // TODO: check the block is confirmed
         db::upsert_block(
             &mut *db_tx,
             &block.header.hash,
             block.header.previous_block_hash.as_ref(),
-            block.header.height,
+            block_num,
             Utc.timestamp(block.header.time as i64, 0),
             &BigDecimal::from(block.header.nonce),
             block.header.version.to_consensus(),
@@ -225,6 +228,7 @@ impl Processor {
                     Some(utxo) => utxo,
                 };
 
+                // balance change will be negative
                 let balance = -&utxo.amount
                     + match balance_updates.get(&utxo.owner) {
                         Some(b) => b.clone(),
@@ -232,7 +236,7 @@ impl Processor {
                     };
 
                 // if execute && rollback_spent_utxos.remove(&txin.previous_output).is_none()
-                db::spend_utxo(&mut *db_tx, utxo.txid, utxo.vout, block.header.height).await?;
+                db::spend_utxo(&mut *db_tx, utxo.txid, utxo.vout, block_num).await?;
 
                 balance_updates.insert(utxo.owner, balance);
             }
@@ -241,25 +245,22 @@ impl Processor {
             for (idx, txout) in block_tx.output.iter().enumerate() {
                 let script = &txout.script_pubkey.as_script();
 
-                // #TODO: handle balance
-                if script.is_p2tr() {}
+                // only handle p2tr balance
+                if !script.is_p2tr() {
+                    continue;
+                }
 
-                let recipient = Address::from_script(script, self.network);
+                let recipient = Address::from_script(script, self.network)?;
+                let address = recipient.to_string();
 
                 let amount = BigDecimal::from(txout.value.to_sat());
 
-                // Check if this txout is relevant
-                // let recipient = match recipient {
-                //     Some(a) if relevant_wallets.contains(&a) => a,
-                //     _ => continue,
-                // };
+                let address = recipient.to_string();
 
-                // let addr = recipient.to_string();
-
-                // let balance = match balance_updates.get(&addr) {
-                //     Some(b) => b.clone(),
-                //     None => BigDecimal::zero(),
-                // };
+                let balance = match balance_updates.get(&address) {
+                    Some(b) => b.clone(),
+                    None => BigDecimal::zero(),
+                };
 
                 let out_point = OutPoint {
                     txid,
@@ -267,15 +268,22 @@ impl Processor {
                 };
 
                 // if execute && rollback_utxos.remove(&out_point).is_none() {
-                //     conn.create_utxo(&addr, txid, idx, txout.value, block_num)
-                //         .await?;
+                db::create_utxo(
+                    &mut *db_tx,
+                    &address,
+                    txid,
+                    idx,
+                    &txout.value.to_sat().into(),
+                    block_num,
+                )
+                .await?;
                 // }
 
                 let balance = balance + amount;
-                balance_updates.insert(addr, balance);
+                balance_updates.insert(address, balance);
             }
 
-            // Create wallet events and update balances as needed
+            // Create p2tr events and update balances as needed
             for (address, value) in balance_updates {
                 let action = match value.clone() {
                     val if val.is_zero() => continue,
@@ -283,21 +291,22 @@ impl Processor {
                     _ => Action::Send,
                 };
 
-                let mut event = create_btc_wallet_event(block_num, &txid, &address, &value, action);
+                let mut event =
+                    BtcP2trEvent::new(block_num, txid, address.clone(), value.clone(), action);
 
-                if let Some(old_event) = rollback_events.remove(&event.get_key()) {
-                    if event.block_number != old_event.block_number {
-                        event.action = Action::Reorg;
-                        wallet_event_queue.push(event);
-                    }
-                // TODO: correction if things are different?
-                } else {
-                    wallet_event_queue.push(event);
+                // if let Some(old_event) = rollback_events.remove(&event.get_key()) {
+                //     if event.block_number != old_event.block_number {
+                //         event.action = Action::Reorg;
+                //         wallet_event_queue.push(event);
+                //     }
+                // } else {
+                //     wallet_event_queue.push(event);
 
-                    if execute {
-                        conn.increment_btc_balance_by(&address, value).await?;
-                    }
-                }
+                //     if execute {
+                //         db::increment_btc_balance(&mut *db_tx, &address, &value, Utc::now())
+                //             .await?;
+                //     }
+                // }
             }
         }
 

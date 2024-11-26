@@ -1,5 +1,10 @@
 use bigdecimal::BigDecimal;
-use bitcoin::{address::NetworkUnchecked, block, hash_types::Txid, Address, Block, OutPoint};
+use bitcoin::{
+    address::{NetworkChecked, NetworkUnchecked},
+    block,
+    hash_types::Txid,
+    Address, Block, OutPoint,
+};
 use bitcoincore_rpc::json::{GetBlockHeaderResult, GetBlockResult};
 use serde::{Deserialize, Serialize};
 
@@ -45,15 +50,34 @@ impl BtcUtxoInfo {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all(serialize = "camelCase"))]
-pub struct BtcWalletEvent {
+pub struct BtcP2trEvent {
     pub sequence_id: i64,
-    pub block_number: u64,
-    pub tx_hash: String,
-    pub address: Address<NetworkUnchecked>,
-    pub amount: String,
+    pub block_number: usize,
+    pub txid: Txid,
+    pub address: String,
+    pub amount: BigDecimal,
     pub action: Action,
+}
+
+impl BtcP2trEvent {
+    pub fn new(
+        block_number: usize,
+        txid: Txid,
+        address: String,
+        amount: BigDecimal,
+        action: Action,
+    ) -> Self {
+        Self {
+            sequence_id: Default::default(),
+            block_number,
+            txid,
+            address,
+            amount,
+            action,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]

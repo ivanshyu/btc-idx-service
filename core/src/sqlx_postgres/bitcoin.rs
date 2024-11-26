@@ -1,18 +1,12 @@
-use crate::bitcoin::types::BtcUtxoInfo;
+use super::ensure_affected;
+use crate::bitcoin::types::{BtcP2trEvent, BtcUtxoInfo};
 
 use std::str::FromStr;
 
-use anyhow::anyhow;
 use atb_types::DateTime;
-use bigdecimal::num_bigint::BigUint;
 use bitcoin::{BlockHash, OutPoint, Txid};
 use num_traits::{FromPrimitive, ToPrimitive};
-use sqlx::{
-    migrate::Migrator,
-    postgres::{PgPoolOptions, PgQueryResult, PgRow},
-    types::{BigDecimal, Json},
-    Error as SqlxError, Executor, PgPool, Postgres, Row,
-};
+use sqlx::{postgres::PgRow, types::BigDecimal, Error as SqlxError, Executor, Postgres, Row};
 
 impl TryFrom<PgRow> for BtcUtxoInfo {
     type Error = sqlx::Error;
@@ -104,7 +98,7 @@ where
     .bind(difficulty)
     .execute(conn)
     .await
-    .map(|_| ())
+    .and_then(ensure_affected(1))
 }
 
 pub async fn upsert_transaction<'e, T>(
@@ -135,7 +129,33 @@ where
     .bind(version)
     .execute(conn)
     .await
-    .map(|_| ())
+    .and_then(ensure_affected(1))
+}
+
+pub async fn increment_btc_balance<'e, T>(
+    conn: T,
+    address: &str,
+    value: &BigDecimal,
+    timestamp: DateTime,
+) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+            INSERT INTO btc_balances AS b
+                (address, balance, last_updated) 
+                VALUES ($1, $2, $3)
+            ON CONFLICT ON CONSTRAINT btc_balances_pkey 
+                DO UPDATE SET balance = b.balance + $2, last_updated = $3;
+        "#,
+    )
+    .bind(address)
+    .bind(value)
+    .bind(timestamp)
+    .execute(conn)
+    .await
+    .and_then(ensure_affected(1))
 }
 
 pub async fn create_utxo<'e, T>(
@@ -167,7 +187,7 @@ where
     .bind(BigDecimal::from(block_num as u64))
     .execute(conn)
     .await
-    .map(|_| ())
+    .and_then(ensure_affected(1))
 }
 
 async fn get_utxos_at_block<'e, T>(
@@ -244,7 +264,6 @@ pub async fn get_relevant_utxos<'e, T>(
 where
     T: Executor<'e, Database = Postgres>,
 {
-    // We are manually creating the ids from the outpoints in case they decide to change their to_string()
     let ids: Vec<String> = utxos
         .iter()
         .map(|x| format!("{}:{}", x.txid, x.vout))
@@ -277,7 +296,7 @@ where
     .bind(vout as i64)
     .execute(conn)
     .await
-    .map(|_| ())
+    .and_then(ensure_affected(1))
 }
 
 pub async fn remove_utxos_since_block<'e, T>(conn: T, block_num: usize) -> Result<u64, sqlx::Error>
@@ -321,7 +340,7 @@ where
     .bind(vout as i64)
     .execute(conn)
     .await
-    .map(|_| ())
+    .and_then(ensure_affected(1))
 }
 
 pub async fn unspend_utxo<'e, T>(conn: T, txid: Txid, vout: u32) -> Result<(), sqlx::Error>
@@ -339,5 +358,28 @@ where
     .bind(vout as i64)
     .execute(conn)
     .await
-    .map(|_| ())
+    .and_then(ensure_affected(1))
+}
+
+pub async fn create_p2tr_event<'e, T>(conn: T, event: BtcP2trEvent) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    let block_num = BigDecimal::from_u64(event.block_number as u64);
+
+    sqlx::query(
+        r#"
+        INSERT INTO btc_wallet_events 
+        (block_number, tx_hash, addr, amount, action) 
+        VALUES ($1, $2, $3, $4, $5)
+        "#,
+    )
+    .bind(block_num)
+    .bind(event.txid.to_string())
+    .bind(event.address.to_string())
+    .bind(event.amount)
+    .bind(event.action as i16)
+    .execute(conn)
+    .await
+    .and_then(ensure_affected(1))
 }
