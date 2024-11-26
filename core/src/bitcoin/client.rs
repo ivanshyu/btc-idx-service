@@ -12,8 +12,8 @@ use std::sync::Arc;
 use atb_types::Utc;
 use bigdecimal::BigDecimal;
 use bitcoin::blockdata::transaction::OutPoint;
-use bitcoin::BlockHash;
-use num_traits::FromPrimitive;
+use bitcoin::{Address, BlockHash, Network};
+use num_traits::{FromPrimitive, Zero};
 use sqlx::types::chrono::TimeZone;
 use sqlx::{PgConnection, PgPool};
 
@@ -142,17 +142,23 @@ pub struct Processor {
     conn: PgPool,
     provider: Arc<Client>,
     current_sequence: i64,
+    network: Network,
 }
 
 impl Processor {
-    pub async fn new(conn: PgPool, provider: Arc<Client>) -> Result<Self, Error> {
+    pub async fn new(conn: PgPool, provider: Arc<Client>, network: Network) -> Result<Self, Error> {
         // let current_sequence = db::get_latest_sequence_id(&conn).await? + 1;
         let current_sequence = 0;
         Ok(Self {
             conn,
             provider,
             current_sequence,
+            network,
         })
+    }
+
+    pub fn get_network(&self) -> Network {
+        self.network
     }
 
     async fn is_processed(&self, block_hash: &BlockHash) -> Result<bool, Error> {
@@ -205,6 +211,95 @@ impl Processor {
                 .into_iter()
                 .map(|info| (info.get_out_point(), info))
                 .collect();
+
+        for block_tx in &block.body.txdata {
+            let txid = block_tx.txid();
+
+            // utxo owner -> balance changes
+            let mut balance_updates: HashMap<String, BigDecimal> = HashMap::new();
+
+            // Handle TxIns
+            for txin in &block_tx.input {
+                let utxo = match relevant_utxos.remove(&txin.previous_output) {
+                    None => continue,
+                    Some(utxo) => utxo,
+                };
+
+                let balance = -&utxo.amount
+                    + match balance_updates.get(&utxo.owner) {
+                        Some(b) => b.clone(),
+                        None => BigDecimal::zero(),
+                    };
+
+                // if execute && rollback_spent_utxos.remove(&txin.previous_output).is_none()
+                db::spend_utxo(&mut *db_tx, utxo.txid, utxo.vout, block.header.height).await?;
+
+                balance_updates.insert(utxo.owner, balance);
+            }
+
+            // Handle TxOuts
+            for (idx, txout) in block_tx.output.iter().enumerate() {
+                let script = &txout.script_pubkey.as_script();
+
+                // #TODO: handle balance
+                if script.is_p2tr() {}
+
+                let recipient = Address::from_script(script, self.network);
+
+                let amount = BigDecimal::from(txout.value.to_sat());
+
+                // Check if this txout is relevant
+                // let recipient = match recipient {
+                //     Some(a) if relevant_wallets.contains(&a) => a,
+                //     _ => continue,
+                // };
+
+                // let addr = recipient.to_string();
+
+                // let balance = match balance_updates.get(&addr) {
+                //     Some(b) => b.clone(),
+                //     None => BigDecimal::zero(),
+                // };
+
+                let out_point = OutPoint {
+                    txid,
+                    vout: idx as u32,
+                };
+
+                // if execute && rollback_utxos.remove(&out_point).is_none() {
+                //     conn.create_utxo(&addr, txid, idx, txout.value, block_num)
+                //         .await?;
+                // }
+
+                let balance = balance + amount;
+                balance_updates.insert(addr, balance);
+            }
+
+            // Create wallet events and update balances as needed
+            for (address, value) in balance_updates {
+                let action = match value.clone() {
+                    val if val.is_zero() => continue,
+                    val if val > BigDecimal::zero() => Action::Receive,
+                    _ => Action::Send,
+                };
+
+                let mut event = create_btc_wallet_event(block_num, &txid, &address, &value, action);
+
+                if let Some(old_event) = rollback_events.remove(&event.get_key()) {
+                    if event.block_number != old_event.block_number {
+                        event.action = Action::Reorg;
+                        wallet_event_queue.push(event);
+                    }
+                // TODO: correction if things are different?
+                } else {
+                    wallet_event_queue.push(event);
+
+                    if execute {
+                        conn.increment_btc_balance_by(&address, value).await?;
+                    }
+                }
+            }
+        }
 
         db_tx.commit().await?;
         self.current_sequence = sequence_id;
@@ -414,33 +509,6 @@ impl Processor {
 //     }
 // }
 
-// #[derive(Clone)]
-// pub struct StorageHandle {
-//     conn: PgPool,
-//     provider: Arc<Client>,
-// }
-
-// #[async_trait]
-// impl<T> StorageHandleT for StorageHandle<T>
-// where
-//     T: TRC20Meta + Send + Sync + 'static,
-// {
-//     type Error = Error;
-//     type Address = Address;
-
-//     async fn commit_addresses(
-//         &self,
-//         addresses: impl Iterator<Item = &'async_trait (Address, Option<String>)> + Send + 'async_trait,
-//     ) -> Result<(), Error> {
-//         let mut tx = self.conn.0.begin().await?;
-
-//         for addr in addresses {
-//             db::insert_address(&mut tx, &addr.0, addr.1.as_deref()).await?;
-//         }
-
-//         tx.commit().await.map_err(Into::into)
-//     }
-// }
 // #[cfg(test)]
 // mod test {
 //     use super::*;

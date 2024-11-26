@@ -1,3 +1,9 @@
+# The magic number for the Bitcoin network
+# 0xD9B4BEF9(3652501241) => Some(Network::Bitcoin),
+# 0x0709110B(118034699) => Some(Network::Testnet),
+# 0x40CF030A(1087308554) => Some(Network::Signet),
+# 0xDAB5BFFA(3669344250) => Some(Network::Regtest),
+magic = 118034699
 provider_url = 'http://bitcoin-testnet:18332'
 poll_frequency_ms = 10000
 # `start_block` is optional.  If omitted, the newest block queried from the chain will

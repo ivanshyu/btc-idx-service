@@ -96,7 +96,7 @@ where
         "#,
     )
     .bind(format!("{:x}", hash.as_raw_hash()))
-    .bind(BigDecimal::from(number as u32))
+    .bind(BigDecimal::from(number as u64))
     .bind(prev_hash.map(|h| format!("{:x}", h.as_raw_hash())).as_deref())
     .bind(timestamp)
     .bind(nonce)
@@ -164,7 +164,7 @@ where
     .bind(txid.to_string())
     .bind(vout as i64)
     .bind(amount)
-    .bind(BigDecimal::from(block_num as u32))
+    .bind(BigDecimal::from(block_num as u64))
     .execute(conn)
     .await
     .map(|_| ())
@@ -177,7 +177,7 @@ async fn get_utxos_at_block<'e, T>(
 where
     T: Executor<'e, Database = Postgres>,
 {
-    let block_num = BigDecimal::from_u32(block_num as u32);
+    let block_num = BigDecimal::from_u64(block_num as u64);
 
     sqlx::query(
         r#"
@@ -195,12 +195,12 @@ where
 
 async fn get_utxos_spent_at_block<'e, T>(
     conn: T,
-    block_num: u64,
+    block_num: usize,
 ) -> Result<Vec<BtcUtxoInfo>, sqlx::Error>
 where
     T: Executor<'e, Database = Postgres>,
 {
-    let block_num = BigDecimal::from_u32(block_num as u32);
+    let block_num = BigDecimal::from_u64(block_num as u64);
 
     sqlx::query(
         r#"
@@ -280,11 +280,11 @@ where
     .map(|_| ())
 }
 
-async fn remove_utxos_since_block<'e, T>(conn: T, block_num: u64) -> Result<u64, sqlx::Error>
+pub async fn remove_utxos_since_block<'e, T>(conn: T, block_num: usize) -> Result<u64, sqlx::Error>
 where
     T: Executor<'e, Database = Postgres>,
 {
-    let block_num = BigDecimal::from_u32(block_num as u32);
+    let block_num = BigDecimal::from_u64(block_num as u64);
 
     sqlx::query(
         r#"
@@ -298,16 +298,16 @@ where
     .map(|pg_done| pg_done.rows_affected())
 }
 
-async fn spend_utxo<'e, T>(
+pub async fn spend_utxo<'e, T>(
     conn: T,
     txid: Txid,
     vout: u32,
-    block_num: u64,
+    block_num: usize,
 ) -> Result<(), sqlx::Error>
 where
     T: Executor<'e, Database = Postgres>,
 {
-    let block_num = BigDecimal::from_u32(block_num as u32);
+    let block_num = BigDecimal::from_u64(block_num as u64);
 
     sqlx::query(
         r#"
@@ -324,7 +324,7 @@ where
     .map(|_| ())
 }
 
-async fn unspend_utxo<'e, T>(conn: T, txid: Txid, vout: u32) -> Result<(), sqlx::Error>
+pub async fn unspend_utxo<'e, T>(conn: T, txid: Txid, vout: u32) -> Result<(), sqlx::Error>
 where
     T: Executor<'e, Database = Postgres>,
 {

@@ -16,7 +16,11 @@ use bis_core::{
     },
     sqlx_postgres::connect_and_migrate,
 };
+use bitcoin::Network;
+use once_cell::sync::OnceCell;
 use sqlx::PgPool;
+
+pub static BTC_NETWORK: OnceCell<Network> = OnceCell::new();
 
 #[derive(Parser, Debug, Clone)]
 pub struct Opts {
@@ -48,6 +52,11 @@ pub fn run(shared_params: SharedParams, opts: Opts) -> anyhow::Result<()> {
     let config = Config::from_file(&config_file)
         .map_err(|e| anyhow::anyhow!("failed to load configuration file {config_file:?}: {e}"))?;
 
+    let network = Network::from_magic(config.magic).unwrap();
+    BTC_NETWORK
+        .set(networkq)
+        .expect("BTC_NETWORK should not be set");
+
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -61,6 +70,7 @@ pub fn run(shared_params: SharedParams, opts: Opts) -> anyhow::Result<()> {
         &shared_params.database_url,
         opts.rpc_user,
         opts.rpc_pwd,
+        network,
     ))?;
 
     // Run services to completion
@@ -77,6 +87,7 @@ pub async fn build_service_config(
     database_url: &str,
     rpc_user: Option<String>,
     rpc_pwd: Option<String>,
+    network: Network,
 ) -> anyhow::Result<ServiceConfig> {
     log::info!("Configuring bitcoin");
     let pg_pool: PgPool = connect_and_migrate(database_url, 5).await?.into();
@@ -94,7 +105,7 @@ pub async fn build_service_config(
 
     let client = Arc::new(client);
 
-    let processor = Processor::new(pg_pool_cloned, client.clone()).await?;
+    let processor = Processor::new(pg_pool_cloned, client.clone(), network).await?;
 
     let harvester = Harvester::new(
         client.clone(),

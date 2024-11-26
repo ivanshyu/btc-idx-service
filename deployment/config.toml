@@ -1,3 +1,9 @@
+# The magic number for the Bitcoin network
+# 0xD9B4BEF9(3652501241) => Some(Network::Bitcoin),
+# 0x0709110B(118034699) => Some(Network::Testnet),
+# 0x40CF030A(1087308554) => Some(Network::Signet),
+# 0xDAB5BFFA(3669344250) => Some(Network::Regtest),
+magic = 3652501241
 provider_url = 'https://lively-fittest-log.btc.quiknode.pro/ad03c5276959ab662d466db6447d45fa6baa9336'
 poll_frequency_ms = 10000
 # `start_block` is optional.  If omitted, the newest block queried from the chain will
