@@ -109,9 +109,11 @@ pub async fn build_service_config(
         event_sender,
     )
     .await?;
+    let handler = harvester.handler();
+
     task_service.add_task(harvester.to_boxed_task_fn());
 
-    Ok(ServiceConfig { pg_pool })
+    Ok(ServiceConfig { handler })
 }
 
 async fn create_harvester(

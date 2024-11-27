@@ -1,6 +1,5 @@
 pub mod bitcoin;
-
-use std::sync::Arc;
+pub mod models;
 
 use actix_cors::Cors;
 use actix_http::header;
@@ -9,16 +8,17 @@ use actix_web::{
     web::{self},
     App, HttpResponse, HttpServer,
 };
+use bis_core::CommandHandler;
 use sqlx::postgres::PgPool;
 
 #[derive(Clone)]
 pub struct ServiceConfig {
-    pub pg_pool: PgPool,
+    pub handler: CommandHandler,
 }
 
 impl ServiceConfig {
     fn service(&self) -> actix_web::Scope {
-        web::scope("api").configure(bitcoin::routes("bitcoin", self.pg_pool.clone()))
+        web::scope("api/v1").configure(bitcoin::routes("bitcoin", self.handler.clone()))
     }
 }
 
@@ -33,9 +33,7 @@ pub async fn build_http_service(host: &str, service_config: ServiceConfig) -> st
         App::new()
             .wrap(
                 Cors::default()
-                    .allowed_origin("http://127.0.0.1:3030")
-                    .allowed_origin("http://localhost:3030")
-                    .allowed_origin("http://localhost:3040")
+                    .allow_any_origin()
                     .allowed_methods(vec!["POST", "GET"])
                     .allowed_header(header::CONTENT_TYPE)
                     .max_age(3600),

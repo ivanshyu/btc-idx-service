@@ -113,6 +113,7 @@ impl Client {
         (&*self.inner).get_block_count().await.map_err(Into::into)
     }
 
+    // TODO: future join
     pub async fn scan_block(&self, number: Option<usize>) -> Result<BlockInfo, Error> {
         let (header, block) = match number {
             Some(num) => {

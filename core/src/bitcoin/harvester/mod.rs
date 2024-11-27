@@ -216,7 +216,7 @@ impl Harvester {
 
     // lifetime
 
-    pub fn handle(&self) -> CommandHandler {
+    pub fn handler(&self) -> CommandHandler {
         CommandHandler {
             sender: self.sender.clone(),
             storage: self.block_processor.db_connection(),
@@ -231,7 +231,7 @@ impl Harvester {
 
     pub async fn run(self, mut shutdown: Shutdown, _shutdown_complete: ShutdownComplete) {
         let name = self.name.clone();
-        let handle = self.handle();
+        let handler = self.handler();
         tokio::select! {
             res = self.start() => {
                 match res {
@@ -245,7 +245,7 @@ impl Harvester {
 
             _ = shutdown.recv() => {
                 log::warn!("{} shutting down from signal", name);
-                let _ = handle.terminate().await;
+                let _ = handler.terminate().await;
             }
         }
         log::trace!("{} stopped", name)

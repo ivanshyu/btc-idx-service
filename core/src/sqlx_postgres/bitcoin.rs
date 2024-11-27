@@ -52,18 +52,22 @@ impl TryFrom<PgRow> for BtcBalance {
     }
 }
 
-pub async fn get_latest_sequence_id<'e, T>(conn: T) -> Result<i64, sqlx::Error>
+pub async fn get_latest_block_num<'e, T>(conn: T) -> Result<usize, sqlx::Error>
 where
     T: sqlx::Executor<'e, Database = sqlx::postgres::Postgres>,
 {
     sqlx::query(
         r#"
-        SELECT sequence_id
-        FROM events 
-        ORDER BY sequence_id DESC LIMIT 1
+        SELECT number
+        FROM blocks 
+        ORDER BY number DESC LIMIT 1
     "#,
     )
-    .try_map(|row: PgRow| row.try_get(0))
+    .try_map(|row: PgRow| {
+        let num = row.try_get::<i64, _>(0).unwrap_or(0);
+        num.try_into()
+            .map_err(|_| sqlx::Error::Decode("convert i64 to u64 failed".into()))
+    })
     .fetch_optional(conn)
     .await
     .map(|v| v.unwrap_or_default())
@@ -349,27 +353,6 @@ where
     .execute(conn)
     .await
     .and_then(ensure_affected(1))
-}
-
-pub async fn get_last_processed_event_id<'e, T>(conn: T) -> Result<u64, sqlx::Error>
-where
-    T: Executor<'e, Database = Postgres>,
-{
-    sqlx::query(
-        r#"
-            SELECT sequence_id
-            FROM btc_p2tr_events
-            ORDER BY sequence_id DESC LIMIT 1
-            "#,
-    )
-    .try_map(|row: PgRow| {
-        let index = row.try_get::<i64, _>(0).unwrap_or(0);
-        index
-            .try_into()
-            .map_err(|_| sqlx::Error::Decode("convert i64 to u64 failed".into()))
-    })
-    .fetch_one(conn)
-    .await
 }
 
 pub async fn create_p2tr_event<'e, T>(conn: T, event: BtcP2trEvent) -> Result<u64, sqlx::Error>

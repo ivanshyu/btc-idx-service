@@ -17,10 +17,11 @@ enum Command {
     AutoScan,
 }
 
+#[derive(Clone, Debug)]
 // handle `indexer scan-block —-from 123456 -—to 124456` from cli
 pub struct CommandHandler {
     sender: mpsc::Sender<Command>,
-    storage: HandlerStorage,
+    pub storage: HandlerStorage,
 }
 
 impl CommandHandler {
@@ -36,6 +37,7 @@ impl CommandHandler {
     }
 }
 
+#[derive(Debug, Clone)]
 // for db interaction
 pub struct HandlerStorage {
     pub conn: PgPool,
