@@ -214,7 +214,7 @@ where
 
     sqlx::query(
         r#"
-        SELECT addr, txid, vout, amount, spent_block 
+        SELECT address, txid, vout, amount, spent_block 
         FROM btc_utxos
         WHERE spent_block = $1
         "#,
@@ -235,7 +235,7 @@ where
 {
     sqlx::query(
         r#"
-        SELECT addr, txid, vout, amount, spent_block 
+        SELECT address, txid, vout, amount, spent_block 
         FROM btc_utxos
         WHERE address = $1 AND spent_block IS NULL
         "#,
@@ -263,7 +263,7 @@ where
         r#"
         SELECT id, address, txid, vout, amount, block_number, spent_block 
         FROM btc_utxos
-        WHERE id = ANY($1)
+        WHERE spent_block IS NULL AND id = ANY($1) 
         "#,
     )
     .bind(ids)
@@ -381,7 +381,7 @@ where
     sqlx::query(
         r#"
         INSERT INTO btc_p2tr_events 
-        (block_number, tx_hash, addr, amount, action) 
+        (block_number, tx_hash, address, amount, action) 
         VALUES ($1, $2, $3, $4, $5)
         RETURNING sequence_id
         "#,
@@ -401,18 +401,21 @@ where
     .await
 }
 
-pub async fn get_btc_balance<'e, T>(conn: T, addr: &str) -> Result<Option<BtcBalance>, sqlx::Error>
+pub async fn get_btc_balance<'e, T>(
+    conn: T,
+    address: &str,
+) -> Result<Option<BtcBalance>, sqlx::Error>
 where
     T: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
         r#"
-        SELECT addr, balance
+        SELECT address, balance
         FROM btc_balances
-        WHERE addr = $1
+        WHERE address = $1
         "#,
     )
-    .bind(addr)
+    .bind(address)
     .try_map(BtcBalance::try_from)
     .fetch_optional(conn)
     .await
@@ -449,6 +452,7 @@ pub async fn increment_static_balances<'e, T>(
     conn: T,
     address: &str,
     value: &BigDecimal,
+    current_hour: DateTime,
     timestamp: DateTime,
 ) -> Result<(), sqlx::Error>
 where
@@ -465,6 +469,7 @@ where
     )
     .bind(address)
     .bind(value)
+    .bind(current_hour)
     .bind(timestamp)
     .execute(conn)
     .await

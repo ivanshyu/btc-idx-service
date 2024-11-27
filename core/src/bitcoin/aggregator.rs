@@ -103,13 +103,17 @@ impl Aggregator {
         };
 
         // #NOTE: unwrap is safe here
-        let current_hour = Utc::now()
+        let now = Utc::now();
+        let current_hour = now
+            .with_minute(0)
+            .unwrap()
             .with_second(0)
             .unwrap()
             .with_nanosecond(0)
             .unwrap();
 
-        db::increment_static_balances(tx.as_mut(), &event.address, &balance, current_hour).await?;
+        db::increment_static_balances(tx.as_mut(), &event.address, &balance, current_hour, now)
+            .await?;
         Ok(())
     }
 

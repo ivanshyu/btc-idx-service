@@ -6,7 +6,6 @@ use actix_web::{
     web::{self, Data},
     Error, HttpRequest, HttpResponse, Responder,
 };
-use futures::stream::StreamExt;
 use serde::Deserialize;
 use sqlx::PgPool;
 
