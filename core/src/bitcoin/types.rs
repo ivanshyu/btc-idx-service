@@ -1,12 +1,10 @@
 use bigdecimal::BigDecimal;
-use bitcoin::{
-    address::{NetworkChecked, NetworkUnchecked},
-    block,
-    hash_types::Txid,
-    Address, Block, OutPoint,
-};
-use bitcoincore_rpc::json::{GetBlockHeaderResult, GetBlockResult};
+use bitcoin::{address::NetworkChecked, hash_types::Txid, Address, Block, Network, OutPoint};
+use bitcoincore_rpc::json::GetBlockHeaderResult;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
+
+pub static BTC_NETWORK: OnceCell<Network> = OnceCell::new();
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "camelCase"))]
@@ -15,11 +13,11 @@ pub struct BtcBlock {
     pub block_number: usize,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub struct BtcBalance {
-    pub address: Address<NetworkUnchecked>,
-    pub amount: String,
+    pub address: Address<NetworkChecked>,
+    pub amount: BigDecimal,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -27,7 +25,7 @@ pub struct BtcBalance {
 pub struct BtcUtxo {
     pub txid: Txid,
     pub vout: u32,
-    pub amount: String,
+    pub amount: BigDecimal,
 }
 
 #[derive(Clone, Debug)]

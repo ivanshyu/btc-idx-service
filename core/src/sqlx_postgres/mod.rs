@@ -1,13 +1,9 @@
 pub mod bitcoin;
 
-use std::str::FromStr;
-
-use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{
     migrate::Migrator,
-    postgres::{PgPoolOptions, PgQueryResult, PgRow},
-    types::Json,
-    Error as SqlxError, PgPool, Postgres, Row,
+    postgres::{PgPoolOptions, PgQueryResult},
+    Error as SqlxError, PgPool,
 };
 
 pub static EMBEDDED_MIGRATE: Migrator = sqlx::migrate!();

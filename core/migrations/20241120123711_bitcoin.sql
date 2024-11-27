@@ -68,3 +68,12 @@ CREATE TABLE IF NOT EXISTS pending_btc_p2tr_events
 
 CREATE INDEX IF NOT EXISTS pending_btc_event_idx ON pending_btc_p2tr_events (block_number);
 CREATE INDEX IF NOT EXISTS pending_btc_event_addr_idx ON pending_btc_p2tr_events (address);
+
+CREATE TABLE IF NOT EXISTS statistic_btc_balances
+(
+    address VARCHAR(50) NOT NULL,
+    balance NUMERIC NOT NULL,
+    datetime_hour TIMESTAMP NOT NULL,
+    last_updated TIMESTAMP NOT NULL,
+    PRIMARY KEY(address, datetime_hour)
+);

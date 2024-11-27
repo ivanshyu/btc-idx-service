@@ -1,3 +1,3 @@
-pub mod client;
+pub mod aggregator;
 pub mod harvester;
 pub mod types;

@@ -1,15 +1,20 @@
-use std::{sync::Arc, time::Duration};
+pub mod client;
 
-use super::{
-    client::{Client, Processor},
-    types::BlockInfo,
+use crate::{
+    bitcoin::harvester::client::{Client, Processor},
+    bitcoin::types::{BlockInfo, BtcP2trEvent},
 };
 use crate::{Command, CommandHandler};
+
+use std::{sync::Arc, time::Duration};
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
 use futures::FutureExt;
 use futures_core::future::BoxFuture;
-use tokio::{sync::mpsc, time::sleep};
+use tokio::{
+    sync::mpsc::{self},
+    time::sleep,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -23,7 +28,7 @@ pub enum Error {
     InvalidDesiredHeight,
 
     #[error("Client: `{0}`")]
-    Client(#[from] super::client::Error),
+    Client(#[from] client::Error),
 
     #[error("Other: `{0}`")]
     Other(#[from] Box<dyn std::error::Error + Sync + Send>),

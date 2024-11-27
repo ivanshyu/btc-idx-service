@@ -1,10 +1,10 @@
 use super::ensure_affected;
-use crate::bitcoin::types::{BtcP2trEvent, BtcUtxoInfo};
+use crate::bitcoin::types::{BtcBalance, BtcP2trEvent, BtcUtxoInfo, BTC_NETWORK};
 
 use std::str::FromStr;
 
 use atb_types::DateTime;
-use bitcoin::{BlockHash, OutPoint, Txid};
+use bitcoin::{Address, BlockHash, OutPoint, Txid};
 use num_traits::{FromPrimitive, ToPrimitive};
 use sqlx::{postgres::PgRow, types::BigDecimal, Error as SqlxError, Executor, Postgres, Row};
 
@@ -33,6 +33,22 @@ impl TryFrom<PgRow> for BtcUtxoInfo {
             amount,
             spent_block,
         })
+    }
+}
+
+impl TryFrom<PgRow> for BtcBalance {
+    type Error = sqlx::Error;
+
+    fn try_from(row: PgRow) -> Result<Self, Self::Error> {
+        let address: &str = row.get(0);
+        let address = Address::from_str(address)
+            .map_err(|e| SqlxError::Decode(e.into()))?
+            .require_network(*BTC_NETWORK.get().unwrap())
+            .map_err(|e| SqlxError::Decode(e.into()))?;
+
+        let amount: BigDecimal = row.get(1);
+
+        Ok(BtcBalance { address, amount })
     }
 }
 
@@ -127,32 +143,6 @@ where
     .bind(lock_time)
     .bind(is_coinbase)
     .bind(version)
-    .execute(conn)
-    .await
-    .and_then(ensure_affected(1))
-}
-
-pub async fn increment_btc_balance<'e, T>(
-    conn: T,
-    address: &str,
-    value: &BigDecimal,
-    timestamp: DateTime,
-) -> Result<(), sqlx::Error>
-where
-    T: Executor<'e, Database = Postgres>,
-{
-    sqlx::query(
-        r#"
-            INSERT INTO btc_balances AS b
-                (address, balance, last_updated) 
-                VALUES ($1, $2, $3)
-            ON CONFLICT ON CONSTRAINT btc_balances_pkey 
-                DO UPDATE SET balance = b.balance + $2, last_updated = $3;
-        "#,
-    )
-    .bind(address)
-    .bind(value)
-    .bind(timestamp)
     .execute(conn)
     .await
     .and_then(ensure_affected(1))
@@ -361,7 +351,28 @@ where
     .and_then(ensure_affected(1))
 }
 
-pub async fn create_p2tr_event<'e, T>(conn: T, event: BtcP2trEvent) -> Result<(), sqlx::Error>
+pub async fn get_last_processed_event_id<'e, T>(conn: T) -> Result<u64, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+            SELECT sequence_id
+            FROM btc_p2tr_events
+            ORDER BY sequence_id DESC LIMIT 1
+            "#,
+    )
+    .try_map(|row: PgRow| {
+        let index = row.try_get::<i64, _>(0).unwrap_or(0);
+        index
+            .try_into()
+            .map_err(|_| sqlx::Error::Decode("convert i64 to u64 failed".into()))
+    })
+    .fetch_one(conn)
+    .await
+}
+
+pub async fn create_p2tr_event<'e, T>(conn: T, event: BtcP2trEvent) -> Result<u64, sqlx::Error>
 where
     T: Executor<'e, Database = Postgres>,
 {
@@ -369,9 +380,10 @@ where
 
     sqlx::query(
         r#"
-        INSERT INTO btc_wallet_events 
+        INSERT INTO btc_p2tr_events 
         (block_number, tx_hash, addr, amount, action) 
         VALUES ($1, $2, $3, $4, $5)
+        RETURNING sequence_id
         "#,
     )
     .bind(block_num)
@@ -379,6 +391,81 @@ where
     .bind(event.address.to_string())
     .bind(event.amount)
     .bind(event.action as i16)
+    .try_map(|row: PgRow| {
+        let index = row.try_get::<i64, _>(0).unwrap_or(0);
+        index
+            .try_into()
+            .map_err(|_| sqlx::Error::Decode("convert i64 to u64 failed".into()))
+    })
+    .fetch_one(conn)
+    .await
+}
+
+pub async fn get_btc_balance<'e, T>(conn: T, addr: &str) -> Result<Option<BtcBalance>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+        SELECT addr, balance
+        FROM btc_balances
+        WHERE addr = $1
+        "#,
+    )
+    .bind(addr)
+    .try_map(BtcBalance::try_from)
+    .fetch_optional(conn)
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn increment_btc_balance<'e, T>(
+    conn: T,
+    address: &str,
+    value: &BigDecimal,
+    timestamp: DateTime,
+) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+            INSERT INTO btc_balances AS b
+                (address, balance, last_updated) 
+                VALUES ($1, $2, $3)
+            ON CONFLICT ON CONSTRAINT btc_balances_pkey 
+                DO UPDATE SET balance = b.balance + $2, last_updated = $3;
+        "#,
+    )
+    .bind(address)
+    .bind(value)
+    .bind(timestamp)
+    .execute(conn)
+    .await
+    .and_then(ensure_affected(1))
+}
+
+pub async fn increment_static_balances<'e, T>(
+    conn: T,
+    address: &str,
+    value: &BigDecimal,
+    timestamp: DateTime,
+) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+            INSERT INTO statistic_btc_balances AS b
+                (address, balance, datetime_hour, last_updated) 
+                VALUES ($1, $2, $3, $4)
+            ON CONFLICT ON CONSTRAINT statistic_btc_balances_pkey 
+                DO UPDATE SET balance = b.balance + $2, last_updated = $3;
+        "#,
+    )
+    .bind(address)
+    .bind(value)
+    .bind(timestamp)
     .execute(conn)
     .await
     .and_then(ensure_affected(1))

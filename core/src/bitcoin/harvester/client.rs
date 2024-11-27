@@ -16,6 +16,7 @@ use bitcoin::{Address, BlockHash, Network};
 use num_traits::{FromPrimitive, Zero};
 use sqlx::types::chrono::TimeZone;
 use sqlx::PgPool;
+use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -33,6 +34,9 @@ pub enum Error {
 
     #[error("Address from script error: {0}")]
     AddressFromScript(#[from] FromScriptError),
+
+    #[error("Send event to aggregator error: {0}")]
+    SendEvent(#[from] tokio::sync::mpsc::error::SendError<BtcP2trEvent>),
 
     /// Other Error
     #[error("Other Error: {0}")]
@@ -146,10 +150,16 @@ pub struct Processor {
     provider: Arc<Client>,
     current_sequence: i64,
     network: Network,
+    event_sender: UnboundedSender<BtcP2trEvent>,
 }
 
 impl Processor {
-    pub async fn new(conn: PgPool, provider: Arc<Client>, network: Network) -> Result<Self, Error> {
+    pub async fn new(
+        conn: PgPool,
+        provider: Arc<Client>,
+        network: Network,
+        event_sender: UnboundedSender<BtcP2trEvent>,
+    ) -> Result<Self, Error> {
         // let current_sequence = db::get_latest_sequence_id(&conn).await? + 1;
         let current_sequence = 0;
         Ok(Self {
@@ -157,6 +167,7 @@ impl Processor {
             provider,
             current_sequence,
             network,
+            event_sender,
         })
     }
 
@@ -291,7 +302,7 @@ impl Processor {
                     _ => Action::Send,
                 };
 
-                let mut event =
+                let event =
                     BtcP2trEvent::new(block_num, txid, address.clone(), value.clone(), action);
 
                 // if let Some(old_event) = rollback_events.remove(&event.get_key()) {
@@ -307,6 +318,7 @@ impl Processor {
                 //             .await?;
                 //     }
                 // }
+                self.event_sender.send(event)?;
             }
         }
 

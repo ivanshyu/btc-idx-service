@@ -4,23 +4,28 @@ use crate::{
     config::Config,
 };
 
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use actix_web::rt::System;
 use atb_cli::clap::{self, Parser, ValueHint};
 use atb_tokio_ext::TaskService;
 use bis_core::{
     bitcoin::{
-        client::{Client, Processor},
-        harvester::Harvester,
+        aggregator::Aggregator,
+        harvester::{
+            client::{Client, Processor},
+            Harvester,
+        },
+        types::{BtcP2trEvent, BTC_NETWORK},
     },
     sqlx_postgres::connect_and_migrate,
 };
-use bitcoin::{p2p::Magic, Network};
-use once_cell::sync::OnceCell;
+use bitcoin::Network;
 use sqlx::PgPool;
-
-pub static BTC_NETWORK: OnceCell<Network> = OnceCell::new();
+use tokio::sync::{
+    mpsc::{self, UnboundedSender},
+    Notify,
+};
 
 #[derive(Parser, Debug, Clone)]
 pub struct Opts {
@@ -92,8 +97,31 @@ pub async fn build_service_config(
     log::info!("Configuring bitcoin");
     let pg_pool: PgPool = connect_and_migrate(database_url, 5).await?.into();
 
-    let pg_pool_cloned = pg_pool.clone();
+    let (event_sender, aggregator) = create_aggregator(pg_pool.clone()).await?;
+    task_service.add_task(aggregator.to_boxed_task_fn());
 
+    let harvester = create_harvester(
+        config,
+        pg_pool.clone(),
+        rpc_user,
+        rpc_pwd,
+        network,
+        event_sender,
+    )
+    .await?;
+    task_service.add_task(harvester.to_boxed_task_fn());
+
+    Ok(ServiceConfig { pg_pool })
+}
+
+async fn create_harvester(
+    config: crate::config::Config,
+    pg_pool: PgPool,
+    rpc_user: Option<String>,
+    rpc_pwd: Option<String>,
+    network: Network,
+    event_sender: UnboundedSender<BtcP2trEvent>,
+) -> anyhow::Result<Harvester> {
     log::info!("Connected to bitcoin rpc: {}", &config.provider_url);
 
     let client = Client::new(
@@ -105,18 +133,24 @@ pub async fn build_service_config(
 
     let client = Arc::new(client);
 
-    let processor = Processor::new(pg_pool_cloned, client.clone(), network).await?;
+    let processor = Processor::new(pg_pool, client.clone(), network, event_sender).await?;
 
-    let harvester = Harvester::new(
+    Ok(Harvester::new(
         client.clone(),
         processor,
         None,
         None,
         config.poll_frequency_ms,
         "bitcoin harvester".to_owned(),
-    );
+    ))
+}
 
-    task_service.add_task(harvester.to_boxed_task_fn());
+async fn create_aggregator(
+    pg_pool: PgPool,
+) -> anyhow::Result<(UnboundedSender<BtcP2trEvent>, Aggregator)> {
+    let (sender, receiver) = mpsc::unbounded_channel();
 
-    Ok(ServiceConfig { pg_pool })
+    let shutdown_notify = Arc::new(Notify::new());
+    let aggregator = Aggregator::new(pg_pool, receiver, shutdown_notify);
+    Ok((sender, aggregator))
 }
