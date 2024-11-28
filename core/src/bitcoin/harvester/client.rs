@@ -162,8 +162,7 @@ impl Processor {
         network: Network,
         event_sender: UnboundedSender<BtcP2trEvent>,
     ) -> Result<Self, Error> {
-        // let current_sequence = db::get_latest_sequence_id(&conn).await? + 1;
-        let current_sequence = 0;
+        let current_sequence = db::get_latest_block_num(&conn).await? as i64 + 1;
         Ok(Self {
             conn,
             provider,
@@ -177,7 +176,7 @@ impl Processor {
         self.network
     }
 
-    async fn is_processed(&self, block_hash: &BlockHash) -> Result<bool, Error> {
+    pub async fn is_processed(&self, block_hash: &BlockHash) -> Result<bool, Error> {
         db::has_block(&self.conn, block_hash)
             .await
             .map_err(Into::into)

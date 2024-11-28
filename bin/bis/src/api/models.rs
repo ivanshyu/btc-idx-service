@@ -1,3 +1,5 @@
+use bis_core::bitcoin::types::{BtcBlock, BtcTransaction};
+
 use std::collections::HashMap;
 
 use atb_cli::DateTime;
@@ -22,10 +24,23 @@ pub struct BlockHeaderData {
     pub previous_hash: BlockHash,
     pub timestamp: DateTime,
     pub nonce: i64,
-    pub version: i64,
-    pub difficulty: f64,
+    pub version: i32,
+    pub difficulty: BigDecimal,
 }
 
+impl From<BtcBlock> for BlockHeaderData {
+    fn from(block: BtcBlock) -> Self {
+        BlockHeaderData {
+            hash: block.hash,
+            number: block.number,
+            previous_hash: block.previous_hash,
+            timestamp: block.timestamp,
+            nonce: block.nonce,
+            version: block.version,
+            difficulty: block.difficulty,
+        }
+    }
+}
 #[derive(Serialize)]
 pub struct Transaction {
     pub transaction_data: TransactionData,
@@ -37,9 +52,20 @@ pub struct TransactionData {
     pub block_hash: BlockHash,
     pub transaction_index: usize,
     pub lock_time: u64,
-    pub version: i64,
+    pub version: i32,
 }
 
+impl From<BtcTransaction> for TransactionData {
+    fn from(transaction: BtcTransaction) -> Self {
+        TransactionData {
+            txid: transaction.txid,
+            block_hash: transaction.block_hash,
+            transaction_index: transaction.transaction_index,
+            lock_time: transaction.lock_time,
+            version: transaction.version,
+        }
+    }
+}
 #[derive(Serialize)]
 pub struct CurrentBalance {
     pub current_balance: BigDecimal,
@@ -51,6 +77,28 @@ pub struct Utxo {
     pub transaction_index: usize,
     pub satoshi: BigDecimal,
     pub block_height: usize,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeSpan {
+    // Recent Month
+    M,
+    // Recent Week
+    W,
+    // Recent Day
+    D,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Granularity {
+    // Weekly
+    W,
+    // Daily
+    D,
+    // Hourly
+    H,
 }
 
 pub type AggregatedInfo = HashMap<DateTime, Vec<AggregatedBalance>>;

@@ -1,16 +1,31 @@
+use atb_types::DateTime;
 use bigdecimal::BigDecimal;
-use bitcoin::{address::NetworkChecked, hash_types::Txid, Address, Block, Network, OutPoint};
+use bitcoin::{
+    address::NetworkChecked, hash_types::Txid, Address, Block, BlockHash, Network, OutPoint,
+};
 use bitcoincore_rpc::json::GetBlockHeaderResult;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 pub static BTC_NETWORK: OnceCell<Network> = OnceCell::new();
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "camelCase"))]
+#[derive(Clone, Debug)]
 pub struct BtcBlock {
-    pub block_hash: String,
-    pub block_number: usize,
+    pub hash: BlockHash,
+    pub number: usize,
+    pub previous_hash: BlockHash,
+    pub timestamp: DateTime,
+    pub nonce: i64,
+    pub version: i32,
+    pub difficulty: BigDecimal,
+}
+#[derive(Clone, Debug)]
+pub struct BtcTransaction {
+    pub txid: Txid,
+    pub block_hash: BlockHash,
+    pub transaction_index: usize,
+    pub lock_time: u64,
+    pub version: i32,
 }
 
 #[derive(Clone, Debug, Serialize)]

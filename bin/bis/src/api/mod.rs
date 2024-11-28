@@ -1,4 +1,5 @@
 pub mod bitcoin;
+pub mod error;
 pub mod models;
 
 use actix_cors::Cors;
@@ -18,7 +19,7 @@ pub struct ServiceConfig {
 
 impl ServiceConfig {
     fn service(&self) -> actix_web::Scope {
-        web::scope("api/v1").configure(bitcoin::routes("bitcoin", self.handler.clone()))
+        web::scope("/api").configure(bitcoin::routes("v1", self.handler.clone()))
     }
 }
 

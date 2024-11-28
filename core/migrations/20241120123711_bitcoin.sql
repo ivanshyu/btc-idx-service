@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS btc_blocks
     hash VARCHAR(66) PRIMARY KEY NOT NULL,
     number BIGINT UNIQUE NOT NULL,
     previous_hash VARCHAR(66),
-    timestamp TIMESTAMP NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
     nonce BIGINT,
     version INT,
     difficulty NUMERIC
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS btc_balances
 (    
     address VARCHAR(62) PRIMARY KEY NOT NULL,
     balance NUMERIC NOT NULL,
-    last_updated TIMESTAMP NOT NULL
+    last_updated TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS btc_utxos
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS statistic_btc_balances
 (
     address VARCHAR(62) NOT NULL,
     balance NUMERIC NOT NULL,
-    datetime_hour TIMESTAMP NOT NULL,
-    last_updated TIMESTAMP NOT NULL,
+    datetime_hour TIMESTAMPTZ NOT NULL,
+    last_updated TIMESTAMPTZ NOT NULL,
     PRIMARY KEY(address, datetime_hour)
 );

@@ -1,5 +1,7 @@
 use super::ensure_affected;
-use crate::bitcoin::types::{BtcBalance, BtcP2trEvent, BtcUtxoInfo, BTC_NETWORK};
+use crate::bitcoin::types::{
+    BtcBalance, BtcBlock, BtcP2trEvent, BtcTransaction, BtcUtxoInfo, BTC_NETWORK,
+};
 
 use std::str::FromStr;
 
@@ -7,6 +9,49 @@ use atb_types::DateTime;
 use bitcoin::{Address, BlockHash, OutPoint, Txid};
 use num_traits::{FromPrimitive, ToPrimitive};
 use sqlx::{postgres::PgRow, types::BigDecimal, Error as SqlxError, Executor, Postgres, Row};
+
+impl TryFrom<PgRow> for BtcBlock {
+    type Error = sqlx::Error;
+    fn try_from(row: PgRow) -> Result<Self, Self::Error> {
+        let block_hash =
+            BlockHash::from_str(row.get(0)).map_err(|e| sqlx::Error::Decode(e.into()))?;
+
+        let previous_block_hash =
+            BlockHash::from_str(row.get(2)).map_err(|e| sqlx::Error::Decode(e.into()))?;
+
+        Ok(Self {
+            hash: block_hash,
+            number: row.get::<i64, _>(1) as usize,
+            previous_hash: previous_block_hash,
+            timestamp: row.get(3),
+            nonce: row.get(4),
+            version: row.get(5),
+            difficulty: row.get(6),
+        })
+    }
+}
+
+impl TryFrom<PgRow> for BtcTransaction {
+    type Error = sqlx::Error;
+    fn try_from(row: PgRow) -> Result<Self, Self::Error> {
+        let txid: &str = row.get(0);
+        let txid = Txid::from_str(txid).map_err(|e| SqlxError::Decode(e.into()))?;
+
+        let block_hash =
+            BlockHash::from_str(row.get(1)).map_err(|e| sqlx::Error::Decode(e.into()))?;
+
+        let lock_time = row.get::<i64, _>(3) as u64;
+        let version = row.get(5);
+
+        Ok(Self {
+            txid,
+            block_hash,
+            transaction_index: row.get::<i32, _>(2) as usize,
+            lock_time,
+            version,
+        })
+    }
+}
 
 impl TryFrom<PgRow> for BtcUtxoInfo {
     type Error = sqlx::Error;
@@ -59,7 +104,7 @@ where
     sqlx::query(
         r#"
         SELECT number
-        FROM blocks 
+        FROM btc_blocks 
         ORDER BY number DESC LIMIT 1
     "#,
     )
@@ -79,11 +124,26 @@ where
 {
     sqlx::query(
         r#"
-            SELECT EXISTS(SELECT 1 FROM blocks WHERE hash = $1)
+            SELECT EXISTS(SELECT 1 FROM btc_blocks WHERE hash = $1)
         "#,
     )
     .bind(format!("{:?}", hash))
     .map(|row: PgRow| -> bool { row.get(0) })
+    .fetch_one(conn)
+    .await
+}
+
+pub async fn get_block<'e, T>(conn: T, hash: &BlockHash) -> Result<BtcBlock, sqlx::Error>
+where
+    T: sqlx::Executor<'e, Database = sqlx::postgres::Postgres>,
+{
+    sqlx::query(
+        r#"
+            SELECT * FROM btc_blocks WHERE hash = $1
+        "#,
+    )
+    .bind(format!("{:?}", hash))
+    .try_map(BtcBlock::try_from)
     .fetch_one(conn)
     .await
 }
@@ -118,7 +178,22 @@ where
     .bind(difficulty)
     .execute(conn)
     .await
-    .and_then(ensure_affected(1))
+    .map(|_|())
+}
+
+pub async fn get_transaction<'e, T>(conn: T, txid: &Txid) -> Result<BtcTransaction, sqlx::Error>
+where
+    T: sqlx::Executor<'e, Database = sqlx::postgres::Postgres>,
+{
+    sqlx::query(
+        r#"
+            SELECT * FROM btc_transactions WHERE txid = $1
+        "#,
+    )
+    .bind(format!("{:?}", txid))
+    .try_map(BtcTransaction::try_from)
+    .fetch_one(conn)
+    .await
 }
 
 pub async fn upsert_transaction<'e, T>(
@@ -138,7 +213,7 @@ where
             INSERT INTO btc_transactions (txid, block_hash, transaction_index, lock_time, is_coinbase, version)
             VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT ON CONSTRAINT btc_transactions_pkey
-            DO UPDATE SET block_hash = $1
+            DO UPDATE SET block_hash = $2
         "#,
     )
     .bind(format!("{:?}", txid))
@@ -382,6 +457,10 @@ where
     })
     .fetch_one(conn)
     .await
+    .map_err(|e| {
+        log::error!("create_p2tr_event error: {}", e);
+        e
+    })
 }
 
 pub async fn get_btc_balance<'e, T>(
