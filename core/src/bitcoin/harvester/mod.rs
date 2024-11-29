@@ -85,23 +85,27 @@ impl Harvester {
                     match cmd {
                         // if end_height is None => keep scanning
                         Some(Command::Terminate) | None => {
+                            log::info!("🤖 harvester {} terminated from COMMAND", self.name);
                             log::warn!("🛑 Harvester {} Terminated", self.name);
                             return Ok(());
                         },
                         Some(Command::ScanBlock(from, to)) => {
-                            self.start_height = Some(from);
+                            log::info!(
+                                "🤖 harvester {} scanning from {} to {} from COMMAND",
+                                self.name,
+                                from,
+                                to
+                            );
+                            self.scan_from(from).await?;
                             self.end_height = Some(to);
                         },
                         Some(Command::Pause) => {
+                            log::info!("🤖 harvester {} paused from COMMAND", self.name);
                             self.end_height = self.last_processed_block.as_ref().map(|b|b.header.height);
                         },
                         Some(Command::AutoScan) => {
+                            log::info!("🤖 harvester {} resumed from COMMAND", self.name);
                             self.end_height = None;
-                            self.start_height = if let Some(b) = self.last_processed_block.as_ref(){
-                                Some(b.header.height + 1)
-                            }else {
-                                Some(0)
-                            };
                         },
                     }
                 }
@@ -231,6 +235,27 @@ impl Harvester {
         Ok(())
     }
 
+    pub async fn scan_from(&mut self, from: usize) -> Result<(), Error> {
+        if let Some(last_processed_block) = &self.last_processed_block {
+            if last_processed_block.header.height < from {
+                log::warn!(
+                    "🤖 harvester Scanning from orignal `{}` to specific block `{}`, it may have some gaps between them",
+                    last_processed_block.header.height,
+                    from
+                );
+                self.start_height = Some(from);
+            }
+        }
+
+        let start_block = self
+            .client
+            .scan_block(Some(from))
+            .await
+            .map_err(|e| Error::Client(e.into()))?;
+
+        let _ = self.last_processed_block.insert(start_block);
+        Ok(())
+    }
     // lifetime
 
     pub fn handle(&self) -> CommandHandler {

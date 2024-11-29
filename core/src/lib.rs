@@ -9,7 +9,7 @@ use sqlx::PgPool;
 use tokio::sync::mpsc;
 
 #[derive(Debug)]
-enum Command {
+pub enum Command {
     Terminate,
     Pause,
     // from , to
@@ -32,6 +32,24 @@ impl CommandHandler {
     pub async fn terminate(&self) -> anyhow::Result<()> {
         self.sender
             .send(Command::Terminate)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn pause(&self) -> anyhow::Result<()> {
+        self.sender.send(Command::Pause).await.map_err(Into::into)
+    }
+
+    pub async fn scan_block(&self, from: usize, to: usize) -> anyhow::Result<()> {
+        self.sender
+            .send(Command::ScanBlock(from, to))
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn auto_scan(&self) -> anyhow::Result<()> {
+        self.sender
+            .send(Command::AutoScan)
             .await
             .map_err(Into::into)
     }

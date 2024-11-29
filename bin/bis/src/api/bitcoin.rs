@@ -24,7 +24,11 @@ pub fn routes(
             .service(raw::transaction)
             .service(processed::p2tr_balance)
             .service(processed::p2tr_utxo)
-            .service(aggregated::balance_snapshots);
+            .service(aggregated::balance_snapshots)
+            .service(protected::pause_harvester)
+            .service(protected::resume_harvester)
+            .service(protected::scan_block)
+            .service(protected::terminate_harvester);
 
         config.service(scope);
     }
@@ -121,7 +125,9 @@ pub mod processed {
 pub mod aggregated {
     use super::*;
     use crate::api::models::{AggregatedBalance, AggregatedBalanceParams, Granularity, TimeSpan};
+    use atb_cli::DateTime;
     use bis_core::bitcoin::types::BTC_NETWORK;
+    use sqlx::types::chrono;
 
     use std::str::FromStr;
 
@@ -180,6 +186,7 @@ pub mod aggregated {
             running_balance -= &change;
             snapshots.insert(
                 datetime.timestamp().to_string(),
+                // taipei_time.to_string(),
                 serde_json::to_value(vec![AggregatedBalance {
                     balance: current_balance,
                 }])
@@ -188,5 +195,61 @@ pub mod aggregated {
         });
 
         Ok(HttpResponse::Ok().json(snapshots))
+    }
+}
+
+pub mod protected {
+    use super::*;
+
+    #[post("protected/harvester/pause")]
+    pub async fn pause_harvester(
+        handler: Data<CommandHandler>,
+    ) -> Result<impl Responder, ApiError> {
+        handler
+            .pause()
+            .await
+            .map_err(|e| ApiError::Other(e.into()))?;
+        Ok(HttpResponse::Ok().body("OK"))
+    }
+
+    #[post("protected/harvester/resume")]
+    pub async fn resume_harvester(
+        handler: Data<CommandHandler>,
+    ) -> Result<impl Responder, ApiError> {
+        handler
+            .auto_scan()
+            .await
+            .map_err(|e| ApiError::Other(e.into()))?;
+        Ok(HttpResponse::Ok().body("OK"))
+    }
+
+    #[post("protected/harvester/scan/{from}/{to}")]
+    pub async fn scan_block(
+        from: Path<usize>,
+        to: Path<usize>,
+        handler: Data<CommandHandler>,
+    ) -> Result<impl Responder, ApiError> {
+        if *from > *to {
+            return Err(ApiError::ParamsInvalid(
+                "From block number must be less than to block number".into(),
+            ));
+        }
+
+        handler
+            .scan_block(*from, *to)
+            .await
+            .map_err(|e| ApiError::Other(e.into()))?;
+        Ok(HttpResponse::Ok().body("OK"))
+    }
+
+    #[post("protected/harvester/terminate")]
+    pub async fn terminate_harvester(
+        handler: Data<CommandHandler>,
+    ) -> Result<impl Responder, ApiError> {
+        handler
+            .terminate()
+            .await
+            .map_err(|e| ApiError::Other(e.into()))?;
+        Ok(HttpResponse::Ok().body("OK"))
     }
 }
