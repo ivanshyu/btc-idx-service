@@ -225,18 +225,18 @@ pub mod protected {
 
     #[post("protected/harvester/scan/{from}/{to}")]
     pub async fn scan_block(
-        from: Path<usize>,
-        to: Path<usize>,
+        from: Path<(usize, usize)>,
         handler: Data<CommandHandler>,
     ) -> Result<impl Responder, ApiError> {
-        if *from > *to {
+        let (from, to) = *from;
+        if from > to {
             return Err(ApiError::ParamsInvalid(
                 "From block number must be less than to block number".into(),
             ));
         }
 
         handler
-            .scan_block(*from, *to)
+            .scan_block(from, to)
             .await
             .map_err(|e| ApiError::Other(e.into()))?;
         Ok(HttpResponse::Ok().body("OK"))

@@ -146,9 +146,6 @@ impl ToString for Granularity {
         }
     }
 }
-
-pub type AggregatedInfo = HashMap<DateTime, Vec<AggregatedBalance>>;
-
 #[derive(Serialize)]
 pub struct AggregatedBalance {
     pub balance: BigDecimal,

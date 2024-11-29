@@ -2,6 +2,7 @@ mod api;
 mod cli;
 mod config;
 pub mod mono;
+pub mod tools;
 
 use atb::logging::init_logger;
 use atb_cli::AtbCli;
@@ -19,7 +20,7 @@ fn main() -> anyhow::Result<()> {
 
     use Subcommand::*;
     match cli.subcommand {
-        ScanBlock(opts) => mono::run(cli.shared_params, opts),
-        _ => Ok(()),
+        Mono(opts) => mono::run(cli.shared_params, opts),
+        Indexer(opts) => tools::run(opts),
     }
 }

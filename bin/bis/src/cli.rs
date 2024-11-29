@@ -33,7 +33,8 @@ impl Cli {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Parser)]
 pub enum Subcommand {
-    ScanBlock(crate::mono::Opts),
+    Mono(crate::mono::Opts),
+    Indexer(crate::tools::Opts),
 }
 
 #[derive(Debug, Parser)]
