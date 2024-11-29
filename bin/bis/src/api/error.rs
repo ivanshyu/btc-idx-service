@@ -28,9 +28,6 @@ pub enum ApiError {
     NotFound(BoxDynError),
 
     /// ===== 500 Series Error =====
-    #[error("Get Config Error: {0}")]
-    GetConfig(String),
-
     #[error("A possible error when converting a `HeaderValue` from a string or byte slice.")]
     ReqwestHeader(#[from] InvalidHeaderValue),
 
@@ -97,10 +94,6 @@ impl ApiError {
 
             ApiError::NotFound(e) => (StatusCode::NOT_FOUND, ("NOT_FOUND_ERROR", Some(e)).into()),
             // ===== 500 Series Error =====
-            ApiError::GetConfig(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ("GET_CONFIG", Some(e)).into(),
-            ),
             ApiError::ReqwestHeader(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ("REQWEST_HEADER_ERROR", None::<String>).into(),

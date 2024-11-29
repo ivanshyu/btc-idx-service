@@ -100,6 +100,13 @@ impl From<BtcUtxoInfo> for Utxo {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub struct AggregatedBalanceParams {
+    pub time_span: TimeSpan,
+    pub granularity: Granularity,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TimeSpan {
     // Recent Month
     M,
@@ -107,6 +114,16 @@ pub enum TimeSpan {
     W,
     // Recent Day
     D,
+}
+
+impl ToString for TimeSpan {
+    fn to_string(&self) -> String {
+        match self {
+            TimeSpan::M => "m".to_string(),
+            TimeSpan::W => "w".to_string(),
+            TimeSpan::D => "d".to_string(),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -118,6 +135,16 @@ pub enum Granularity {
     D,
     // Hourly
     H,
+}
+
+impl ToString for Granularity {
+    fn to_string(&self) -> String {
+        match self {
+            Granularity::W => "w".to_string(),
+            Granularity::D => "d".to_string(),
+            Granularity::H => "h".to_string(),
+        }
+    }
 }
 
 pub type AggregatedInfo = HashMap<DateTime, Vec<AggregatedBalance>>;

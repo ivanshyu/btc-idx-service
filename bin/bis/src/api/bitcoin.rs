@@ -10,6 +10,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use bitcoin::{BlockHash, Txid};
+use serde_json::json;
 
 pub fn routes(
     scope: &'static str,
@@ -22,7 +23,8 @@ pub fn routes(
             .service(raw::block)
             .service(raw::transaction)
             .service(processed::p2tr_balance)
-            .service(processed::p2tr_utxo);
+            .service(processed::p2tr_utxo)
+            .service(aggregated::balance_snapshots);
 
         config.service(scope);
     }
@@ -80,7 +82,7 @@ pub mod processed {
 
     use std::str::FromStr;
 
-    use bitcoin::{address::NetworkChecked, Address, ScriptBuf};
+    use bitcoin::Address;
 
     use super::*;
 
@@ -113,5 +115,78 @@ pub mod processed {
             .map(|u| u.into_iter().map(Utxo::from).collect::<Vec<_>>())
             .map(|u| HttpResponse::Ok().json(u))
             .map_err(Into::into)
+    }
+}
+
+pub mod aggregated {
+    use super::*;
+    use crate::api::models::{AggregatedBalance, AggregatedBalanceParams, Granularity, TimeSpan};
+    use bis_core::bitcoin::types::BTC_NETWORK;
+
+    use std::str::FromStr;
+
+    use bitcoin::Address;
+    use web::Query;
+
+    #[get("aggregated/p2tr/{address}")]
+    pub async fn balance_snapshots(
+        address: Path<String>,
+        query: Query<AggregatedBalanceParams>,
+        handler: Data<CommandHandler>,
+    ) -> Result<impl Responder, ApiError> {
+        let AggregatedBalanceParams {
+            time_span,
+            granularity,
+        } = query.into_inner();
+
+        let (interval, step, step_interval) = match (time_span, granularity) {
+            (TimeSpan::M, Granularity::W) => ("1 month", "week", "1 week"),
+            (TimeSpan::M, Granularity::D) => ("1 month", "day", "1 day"),
+            (TimeSpan::M, Granularity::H) => ("1 month", "hour", "1 hour"),
+            (TimeSpan::W, Granularity::W) => ("1 week", "week", "1 week"),
+            (TimeSpan::W, Granularity::D) => ("1 week", "day", "1 day"),
+            (TimeSpan::W, Granularity::H) => ("1 week", "hour", "1 hour"),
+            (TimeSpan::D, Granularity::D) => ("1 day", "day", "1 day"),
+            (TimeSpan::D, Granularity::H) => ("1 day", "hour", "1 hour"),
+            _ => {
+                return Err(ApiError::ParamsInvalid(
+                    "Invalid time span or granularity combination".into(),
+                ));
+            }
+        };
+
+        let address = Address::from_str(&address)
+            .and_then(|a| a.require_network(*BTC_NETWORK.get().unwrap()))
+            .map_err(|e| ApiError::ParamsInvalid(e.into()))?;
+
+        let total = db::get_btc_balance(&handler.storage.conn, &address.to_string())
+            .await?
+            .map(|b| b.amount)
+            .unwrap_or_default();
+
+        let mut snapshots = serde_json::Map::new();
+        let mut running_balance = total;
+        db::get_balance_snapshots(
+            &handler.storage.conn,
+            &address.to_string(),
+            interval,
+            step,
+            step_interval,
+        )
+        .await?
+        .into_iter()
+        .for_each(|(datetime, change)| {
+            let current_balance = running_balance.clone();
+            running_balance -= &change;
+            snapshots.insert(
+                datetime.timestamp().to_string(),
+                serde_json::to_value(vec![AggregatedBalance {
+                    balance: current_balance,
+                }])
+                .unwrap(),
+            );
+        });
+
+        Ok(HttpResponse::Ok().json(snapshots))
     }
 }

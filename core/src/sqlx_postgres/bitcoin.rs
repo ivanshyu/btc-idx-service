@@ -524,6 +524,16 @@ where
     .and_then(ensure_affected(1))
 }
 
+pub async fn get_static_balances<'e, T>(
+    conn: T,
+    address: &Address<NetworkChecked>,
+) -> Result<Option<BigDecimal>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    todo!()
+}
+
 pub async fn increment_static_balances<'e, T>(
     conn: T,
     address: &Address<NetworkChecked>,
@@ -550,4 +560,42 @@ where
     .execute(conn)
     .await
     .and_then(ensure_affected(1))
+}
+
+pub async fn get_balance_snapshots<'e, T>(
+    conn: T,
+    address: &str,
+    interval: &str,
+    step: &str,
+    step_interval: &str,
+) -> Result<Vec<(DateTime, BigDecimal)>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+        WITH time_series AS (
+            SELECT generate_series(
+                date_trunc($1, now()) - $2::interval,
+                date_trunc($1, now()),
+                $4::interval 
+            ) AS datetime_hour
+        )
+        SELECT 
+            t.datetime_hour,
+            COALESCE(b.balance, 0) as balance
+        FROM time_series t
+        LEFT JOIN statistic_btc_balances b 
+            ON date_trunc($1, b.datetime_hour) = t.datetime_hour
+            AND b.address = $3
+        ORDER BY t.datetime_hour DESC
+        "#,
+    )
+    .bind(step)
+    .bind(interval)
+    .bind(address)
+    .bind(step_interval) // 新增参数
+    .try_map(|row: PgRow| Ok((row.get::<DateTime, _>(0), row.get::<BigDecimal, _>(1))))
+    .fetch_all(conn)
+    .await
 }

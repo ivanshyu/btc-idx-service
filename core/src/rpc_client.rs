@@ -32,7 +32,6 @@ struct RpcRequest<'a> {
 
 #[derive(Deserialize, Debug)]
 struct RpcResponse<T> {
-    id: String,
     result: Option<T>,
     error: Option<RpcError>,
 }
@@ -60,7 +59,7 @@ pub struct RpcError {
 
 impl Display for RpcError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
+        write!(f, "{} {}", self.code, self.message)
     }
 }
 

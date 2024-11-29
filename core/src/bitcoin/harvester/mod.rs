@@ -7,7 +7,7 @@ use crate::{
 };
 use crate::{Command, CommandHandler};
 
-use std::{sync::Arc, time::Duration};
+use std::{cmp::max, sync::Arc, time::Duration};
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
 use futures::FutureExt;
@@ -131,6 +131,7 @@ impl Harvester {
 
     pub async fn harvest(&mut self) -> Result<(), Error> {
         let desired_height = if let Some(h) = self.end_height {
+            log::info!("harvester desired end height: {}", h);
             h
         } else {
             self.client
@@ -139,14 +140,28 @@ impl Harvester {
                 .map_err(|e| Error::Client(e.into()))?
         };
 
-        log::info!("harvester desired_height: {}", desired_height);
-
+        log::info!("harvester desired height: {}", desired_height);
         //
         let (prev_block, process_first) = match self.last_processed_block {
             Some(ref mut block) => (block, false),
             None => {
                 // first time ever handling events
-                let start_num = self.start_height.unwrap_or(desired_height);
+                log::info!("🤖 harvester first time handling events after start");
+
+                let last_processed_block =
+                    db::get_latest_block_num(&self.block_processor.db_connection().conn).await?;
+                log::info!(
+                    "harvester last processed block in db: {}",
+                    last_processed_block.unwrap_or(0)
+                );
+
+                log::info!("harvester start_height in config: {:?}", self.start_height);
+
+                let start_num = match last_processed_block {
+                    Some(num) => max(num + 1, self.start_height.unwrap_or(desired_height)),
+                    None => self.start_height.unwrap_or(desired_height),
+                };
+
                 log::info!("harvester start_num: {}", start_num);
                 let start_block = self
                     .client
