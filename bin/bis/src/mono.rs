@@ -109,7 +109,7 @@ pub async fn build_service_config(
         event_sender,
     )
     .await?;
-    let handler = harvester.handler();
+    let handler = harvester.handle();
 
     task_service.add_task(harvester.to_boxed_task_fn());
 
@@ -140,11 +140,12 @@ async fn create_harvester(
     Ok(Harvester::new(
         client.clone(),
         processor,
-        None,
+        config.start_block,
         None,
         config.poll_frequency_ms,
         "bitcoin harvester".to_owned(),
-    ))
+    )
+    .await)
 }
 
 async fn create_aggregator(

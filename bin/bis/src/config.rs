@@ -12,7 +12,7 @@ pub struct Config {
     pub magic: String,
     pub provider_url: String,
     pub poll_frequency_ms: u64,
-    pub start_block: Option<u64>,
+    pub start_block: Option<usize>,
 }
 
 impl Config {

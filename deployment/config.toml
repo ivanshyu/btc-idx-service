@@ -3,4 +3,4 @@ provider_url = 'https://lively-fittest-log.btc.quiknode.pro/ad03c5276959ab662d46
 poll_frequency_ms = 10000
 # `start_block` is optional.  If omitted, the newest block queried from the chain will
 # be the `start_block` value
-# start_block = 0
+start_block = 872421

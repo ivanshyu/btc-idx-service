@@ -464,6 +464,7 @@ dependencies = [
  "futures",
  "hex",
  "log",
+ "mime",
  "once_cell",
  "rand",
  "reqwest",

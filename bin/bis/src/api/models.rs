@@ -1,4 +1,4 @@
-use bis_core::bitcoin::types::{BtcBlock, BtcTransaction};
+use bis_core::bitcoin::types::{BtcBalance, BtcBlock, BtcTransaction, BtcUtxoInfo};
 
 use std::collections::HashMap;
 
@@ -9,7 +9,7 @@ use sqlx::types::BigDecimal;
 
 #[derive(Serialize)]
 pub struct LatestBlockHeight {
-    pub latest_block_height: usize,
+    pub latest_block_height: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -71,12 +71,31 @@ pub struct CurrentBalance {
     pub current_balance: BigDecimal,
 }
 
+impl From<BtcBalance> for CurrentBalance {
+    fn from(balance: BtcBalance) -> Self {
+        CurrentBalance {
+            current_balance: balance.amount,
+        }
+    }
+}
+
 #[derive(Serialize)]
 pub struct Utxo {
     pub transaction_id: Txid,
     pub transaction_index: usize,
     pub satoshi: BigDecimal,
     pub block_height: usize,
+}
+
+impl From<BtcUtxoInfo> for Utxo {
+    fn from(utxo: BtcUtxoInfo) -> Self {
+        Utxo {
+            transaction_id: utxo.txid,
+            transaction_index: utxo.vout as usize,
+            satoshi: utxo.amount,
+            block_height: utxo.block_number as usize,
+        }
+    }
 }
 
 #[derive(Deserialize)]

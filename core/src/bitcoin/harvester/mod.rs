@@ -2,7 +2,8 @@ pub mod client;
 
 use crate::{
     bitcoin::harvester::client::{Client, Processor},
-    bitcoin::types::{BlockInfo, BtcP2trEvent},
+    bitcoin::types::BlockInfo,
+    sqlx_postgres::bitcoin as db,
 };
 use crate::{Command, CommandHandler};
 
@@ -48,7 +49,7 @@ pub struct Harvester {
 }
 
 impl Harvester {
-    pub fn new(
+    pub async fn new(
         client: Arc<Client>,
         block_processor: Processor,
         start_height: Option<usize>,
@@ -97,7 +98,7 @@ impl Harvester {
                         Some(Command::AutoScan) => {
                             self.end_height = None;
                             self.start_height = if let Some(b) = self.last_processed_block.as_ref(){
-                                Some((b.header.height + 1))
+                                Some(b.header.height + 1)
                             }else {
                                 Some(0)
                             };
@@ -146,6 +147,7 @@ impl Harvester {
             None => {
                 // first time ever handling events
                 let start_num = self.start_height.unwrap_or(desired_height);
+                log::info!("harvester start_num: {}", start_num);
                 let start_block = self
                     .client
                     .scan_block(Some(start_num))
@@ -178,13 +180,13 @@ impl Harvester {
         process_first: bool,
     ) -> Result<(), Error> {
         if process_first {
-            log::trace!(
+            log::info!(
                 "🤖 {} Processing first block {}",
                 name,
                 prev_block.header.height
             );
             block_processor.process(prev_block).await?;
-            log::trace!("✅ {} Finished Processing first block", name);
+            log::info!("✅ {} Finished Processing first block", name);
         }
 
         // Otherwise process until we reach the head
@@ -198,9 +200,9 @@ impl Harvester {
 
             if let Some(prev) = block.header.previous_block_hash {
                 if prev_block.header.hash == prev {
-                    log::trace!("🤖 {} Processing block {}", name, block_num);
+                    log::info!("🤖 {} Processing block {}", name, block_num);
                     block_processor.process(&block).await?;
-                    log::trace!("✅ {} Finished Processing block", name);
+                    log::info!("✅ {} Finished Processing block", name);
                 } else {
                     log::info!("❗️{} Detected fork - Preparing reorg", name);
                     // Self::handle_reorg(name, client, block_processor, block.clone()).await
@@ -216,7 +218,7 @@ impl Harvester {
 
     // lifetime
 
-    pub fn handler(&self) -> CommandHandler {
+    pub fn handle(&self) -> CommandHandler {
         CommandHandler {
             sender: self.sender.clone(),
             storage: self.block_processor.db_connection(),
@@ -231,7 +233,7 @@ impl Harvester {
 
     pub async fn run(self, mut shutdown: Shutdown, _shutdown_complete: ShutdownComplete) {
         let name = self.name.clone();
-        let handler = self.handler();
+        let handle = self.handle();
         tokio::select! {
             res = self.start() => {
                 match res {
@@ -245,9 +247,9 @@ impl Harvester {
 
             _ = shutdown.recv() => {
                 log::warn!("{} shutting down from signal", name);
-                let _ = handler.terminate().await;
+                let _ = handle.terminate().await;
             }
         }
-        log::trace!("{} stopped", name)
+        log::info!("{} stopped", name)
     }
 }

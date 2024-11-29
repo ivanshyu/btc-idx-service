@@ -28,8 +28,7 @@ pub struct BtcTransaction {
     pub version: i32,
 }
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all(serialize = "camelCase"))]
+#[derive(Clone, Debug)]
 pub struct BtcBalance {
     pub address: Address<NetworkChecked>,
     pub amount: BigDecimal,
@@ -45,10 +44,11 @@ pub struct BtcUtxo {
 
 #[derive(Clone, Debug)]
 pub struct BtcUtxoInfo {
-    pub owner: String,
+    pub owner: Address<NetworkChecked>,
     pub txid: Txid,
     pub vout: u32,
     pub amount: BigDecimal,
+    pub block_number: u64,
     pub spent_block: Option<u64>,
 }
 
@@ -63,13 +63,12 @@ impl BtcUtxoInfo {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all(serialize = "camelCase"))]
+#[derive(Clone, Debug)]
 pub struct BtcP2trEvent {
     pub sequence_id: i64,
     pub block_number: usize,
     pub txid: Txid,
-    pub address: String,
+    pub address: Address<NetworkChecked>,
     pub amount: BigDecimal,
     pub action: Action,
 }
@@ -78,7 +77,7 @@ impl BtcP2trEvent {
     pub fn new(
         block_number: usize,
         txid: Txid,
-        address: String,
+        address: Address<NetworkChecked>,
         amount: BigDecimal,
         action: Action,
     ) -> Self {

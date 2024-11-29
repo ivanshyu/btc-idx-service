@@ -6,7 +6,7 @@ use crate::bitcoin::types::{
 use std::str::FromStr;
 
 use atb_types::DateTime;
-use bitcoin::{Address, BlockHash, OutPoint, Txid};
+use bitcoin::{address::NetworkChecked, Address, BlockHash, OutPoint, Txid};
 use num_traits::{FromPrimitive, ToPrimitive};
 use sqlx::{postgres::PgRow, types::BigDecimal, Error as SqlxError, Executor, Postgres, Row};
 
@@ -56,15 +56,18 @@ impl TryFrom<PgRow> for BtcTransaction {
 impl TryFrom<PgRow> for BtcUtxoInfo {
     type Error = sqlx::Error;
     fn try_from(row: PgRow) -> Result<Self, Self::Error> {
-        let txid: &str = row.get(2);
+        let address: &str = row.get(0);
+        let txid: &str = row.get(1);
         let txid = Txid::from_str(txid).map_err(|e| SqlxError::Decode(e.into()))?;
 
-        let vout = row.get::<i64, _>(3) as u32;
+        let vout = row.get::<i64, _>(2) as u32;
 
-        let amount: BigDecimal = row.get(4);
+        let amount: BigDecimal = row.get(3);
+
+        let block_number = row.get::<i64, _>(4) as u64;
 
         let spent_block = row
-            .get::<Option<BigDecimal>, _>(6)
+            .get::<Option<BigDecimal>, _>(5)
             .map(|bd| {
                 bd.to_u64()
                     .ok_or_else(|| SqlxError::Decode("convert bigdecimal to u64 failed".into()))
@@ -72,10 +75,20 @@ impl TryFrom<PgRow> for BtcUtxoInfo {
             .transpose()?;
 
         Ok(BtcUtxoInfo {
-            owner: row.get(1),
+            owner: Address::from_str(address)
+                .map_err(|e| {
+                    log::error!("btc utxo info address decode error 1: {}", address);
+                    e
+                })
+                .and_then(|a| a.require_network(*BTC_NETWORK.get().unwrap()))
+                .map_err(|e| {
+                    log::error!("btc utxo info address decode error 2: {}", address);
+                    SqlxError::Decode(e.into())
+                })?,
             txid,
             vout,
             amount,
+            block_number,
             spent_block,
         })
     }
@@ -87,9 +100,15 @@ impl TryFrom<PgRow> for BtcBalance {
     fn try_from(row: PgRow) -> Result<Self, Self::Error> {
         let address: &str = row.get(0);
         let address = Address::from_str(address)
-            .map_err(|e| SqlxError::Decode(e.into()))?
+            .map_err(|e| {
+                log::error!("btc balance address decode error 1: {}", address);
+                SqlxError::Decode(e.into())
+            })?
             .require_network(*BTC_NETWORK.get().unwrap())
-            .map_err(|e| SqlxError::Decode(e.into()))?;
+            .map_err(|e| {
+                log::error!("btc balance address decode error 2: {}", address);
+                SqlxError::Decode(e.into())
+            })?;
 
         let amount: BigDecimal = row.get(1);
 
@@ -97,7 +116,7 @@ impl TryFrom<PgRow> for BtcBalance {
     }
 }
 
-pub async fn get_latest_block_num<'e, T>(conn: T) -> Result<usize, sqlx::Error>
+pub async fn get_latest_block_num<'e, T>(conn: T) -> Result<Option<usize>, sqlx::Error>
 where
     T: sqlx::Executor<'e, Database = sqlx::postgres::Postgres>,
 {
@@ -108,14 +127,9 @@ where
         ORDER BY number DESC LIMIT 1
     "#,
     )
-    .try_map(|row: PgRow| {
-        let num = row.try_get::<i64, _>(0).unwrap_or(0);
-        num.try_into()
-            .map_err(|_| sqlx::Error::Decode("convert i64 to u64 failed".into()))
-    })
+    .try_map(|row: PgRow| row.try_get::<i64, _>(0).map(|n| n as usize))
     .fetch_optional(conn)
     .await
-    .map(|v| v.unwrap_or_default())
 }
 
 pub async fn has_block<'e, T>(conn: T, hash: &BlockHash) -> Result<bool, sqlx::Error>
@@ -270,7 +284,7 @@ where
 
     sqlx::query(
         r#"
-        SELECT id, address, txid, vout, amount, block_number, spent_block 
+        SELECT address, txid, vout, amount, block_number, spent_block 
         FROM btc_utxos
         WHERE block_number = $1
         "#,
@@ -293,7 +307,7 @@ where
 
     sqlx::query(
         r#"
-        SELECT address, txid, vout, amount, spent_block 
+        SELECT address, txid, vout, amount, block_number, spent_block 
         FROM btc_utxos
         WHERE spent_block = $1
         "#,
@@ -305,7 +319,7 @@ where
     .map_err(Into::into)
 }
 
-async fn get_unspent_utxos_by_owner<'e, T>(
+pub async fn get_unspent_utxos_by_owner<'e, T>(
     conn: T,
     owner: &str,
 ) -> Result<Vec<BtcUtxoInfo>, sqlx::Error>
@@ -314,7 +328,7 @@ where
 {
     sqlx::query(
         r#"
-        SELECT address, txid, vout, amount, spent_block 
+        SELECT address, txid, vout, amount, block_number, spent_block 
         FROM btc_utxos
         WHERE address = $1 AND spent_block IS NULL
         "#,
@@ -340,7 +354,7 @@ where
 
     sqlx::query(
         r#"
-        SELECT id, address, txid, vout, amount, block_number, spent_block 
+        SELECT address, txid, vout, amount, block_number, spent_block 
         FROM btc_utxos
         WHERE spent_block IS NULL AND id = ANY($1) 
         "#,
@@ -447,7 +461,7 @@ where
     .bind(block_num)
     .bind(event.txid.to_string())
     .bind(event.address.to_string())
-    .bind(event.amount)
+    .bind(&event.amount)
     .bind(event.action as i16)
     .try_map(|row: PgRow| {
         let index = row.try_get::<i64, _>(0).unwrap_or(0);
@@ -458,7 +472,7 @@ where
     .fetch_one(conn)
     .await
     .map_err(|e| {
-        log::error!("create_p2tr_event error: {}", e);
+        log::error!("create_p2tr_event error: {}, {:?}", e, event);
         e
     })
 }
@@ -486,7 +500,7 @@ where
 
 pub async fn increment_btc_balance<'e, T>(
     conn: T,
-    address: &str,
+    address: &Address<NetworkChecked>,
     value: &BigDecimal,
     timestamp: DateTime,
 ) -> Result<(), sqlx::Error>
@@ -502,7 +516,7 @@ where
                 DO UPDATE SET balance = b.balance + $2, last_updated = $3;
         "#,
     )
-    .bind(address)
+    .bind(address.to_string())
     .bind(value)
     .bind(timestamp)
     .execute(conn)
@@ -512,7 +526,7 @@ where
 
 pub async fn increment_static_balances<'e, T>(
     conn: T,
-    address: &str,
+    address: &Address<NetworkChecked>,
     value: &BigDecimal,
     current_hour: DateTime,
     timestamp: DateTime,
@@ -529,7 +543,7 @@ where
                 DO UPDATE SET balance = b.balance + $2, last_updated = $3;
         "#,
     )
-    .bind(address)
+    .bind(address.to_string())
     .bind(value)
     .bind(current_hour)
     .bind(timestamp)

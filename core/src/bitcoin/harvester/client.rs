@@ -1,4 +1,4 @@
-use crate::bitcoin::types::{Action, BlockInfo, BtcP2trEvent, BtcUtxoInfo};
+use crate::bitcoin::types::{Action, BlockInfo, BtcP2trEvent, BtcUtxoInfo, BTC_NETWORK};
 use crate::rpc_client::{self, BitcoinRpcClient};
 use crate::sqlx_postgres::bitcoin::{self as db};
 use crate::HandlerStorage;
@@ -6,12 +6,12 @@ use crate::HandlerStorage;
 use std::collections::HashMap;
 use std::convert::Into;
 use std::fmt::Debug;
+use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
 
 use atb_types::Utc;
 use bigdecimal::BigDecimal;
-use bitcoin::address::FromScriptError;
+use bitcoin::address::{FromScriptError, NetworkChecked, ParseError};
 use bitcoin::blockdata::transaction::OutPoint;
 use bitcoin::{Address, BlockHash, Network};
 use num_traits::{FromPrimitive, Zero};
@@ -35,6 +35,9 @@ pub enum Error {
 
     #[error("Address from script error: {0}")]
     AddressFromScript(#[from] FromScriptError),
+
+    #[error("Address parse error: {0}")]
+    AddressParse(#[from] ParseError),
 
     #[error("Send event to aggregator error: {0}")]
     SendEvent(#[from] tokio::sync::mpsc::error::SendError<BtcP2trEvent>),
@@ -150,7 +153,6 @@ impl Debug for Client {
 pub struct Processor {
     conn: PgPool,
     provider: Arc<Client>,
-    current_sequence: i64,
     network: Network,
     event_sender: UnboundedSender<BtcP2trEvent>,
 }
@@ -162,11 +164,9 @@ impl Processor {
         network: Network,
         event_sender: UnboundedSender<BtcP2trEvent>,
     ) -> Result<Self, Error> {
-        let current_sequence = db::get_latest_block_num(&conn).await? as i64 + 1;
         Ok(Self {
             conn,
             provider,
-            current_sequence,
             network,
             event_sender,
         })
@@ -185,7 +185,6 @@ impl Processor {
     pub async fn process(&mut self, block: &BlockInfo) -> Result<(), Error> {
         let mut db_tx = self.conn.begin().await?;
 
-        let mut sequence_id = self.current_sequence;
         let block_num = block.header.height;
         // log::info!("Processing block {:?}", &block);
         // TODO: check the block is confirmed
@@ -228,10 +227,10 @@ impl Processor {
                 .collect();
 
         for block_tx in &block.body.txdata {
-            let txid = block_tx.txid();
+            let txid = block_tx.compute_txid();
 
             // utxo owner -> balance changes
-            let mut balance_updates: HashMap<String, BigDecimal> = HashMap::new();
+            let mut balance_updates: HashMap<Address<NetworkChecked>, BigDecimal> = HashMap::new();
 
             // Handle TxIns, deduct previos utxo amount, and mark them as used
             for txin in &block_tx.input {
@@ -266,8 +265,7 @@ impl Processor {
                     continue;
                 }
 
-                let recipient = Address::from_script(script, self.network)?;
-                let address = recipient.to_string();
+                let address = Address::from_script(script, self.network)?;
 
                 let amount = BigDecimal::from(txout.value.to_sat());
 
@@ -284,7 +282,7 @@ impl Processor {
                 // if execute && rollback_utxos.remove(&out_point).is_none() {
                 db::create_utxo(
                     &mut *db_tx,
-                    &address,
+                    &address.to_string(),
                     txid,
                     idx,
                     &txout.value.to_sat().into(),
@@ -305,8 +303,7 @@ impl Processor {
                     _ => Action::Send,
                 };
 
-                let event =
-                    BtcP2trEvent::new(block_num, txid, address.clone(), value.clone(), action);
+                let event = BtcP2trEvent::new(block_num, txid, address, value.clone(), action);
 
                 // if let Some(old_event) = rollback_events.remove(&event.get_key()) {
                 //     if event.block_number != old_event.block_number {
@@ -326,7 +323,6 @@ impl Processor {
         }
 
         db_tx.commit().await?;
-        self.current_sequence = sequence_id;
 
         Ok(())
     }
