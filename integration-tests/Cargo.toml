@@ -9,6 +9,12 @@ doctest = false
 test = false
 
 [dev-dependencies]
+bis-core = { path = "../core" }
+
+atb = { workspace = true }
 tokio = { version = "1.0", features = ["full"] }
 bigdecimal = { workspace = true }
 anyhow = { workspace = true }
+sqlx = { workspace = true }
+bitcoin = { workspace = true }
+futures = { workspace = true }

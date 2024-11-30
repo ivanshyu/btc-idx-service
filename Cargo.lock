@@ -1545,7 +1545,12 @@ name = "integration-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "atb",
  "bigdecimal",
+ "bis-core",
+ "bitcoin",
+ "futures",
+ "sqlx",
  "tokio",
 ]
 

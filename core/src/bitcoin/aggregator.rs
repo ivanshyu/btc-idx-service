@@ -84,10 +84,8 @@ impl Aggregator {
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         event: BtcP2trEvent,
     ) -> Result<(), Error> {
-        let balance = match event.action {
-            Action::Send => -event.amount,
-            Action::Receive => event.amount,
-        };
+        // send: negative, receive: positive
+        let balance = event.amount;
         db::increment_btc_balance(tx.as_mut(), &event.address, &balance, Utc::now()).await?;
         Ok(())
     }
@@ -97,10 +95,8 @@ impl Aggregator {
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         event: BtcP2trEvent,
     ) -> Result<(), Error> {
-        let balance = match event.action {
-            Action::Send => -event.amount,
-            Action::Receive => event.amount,
-        };
+        // send: negative, receive: positive
+        let balance = event.amount;
 
         // #NOTE: unwrap is safe here
         let now = Utc::now();
