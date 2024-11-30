@@ -1,6 +1,7 @@
-use crate::bitcoin::types::{Action, BlockInfo, BtcP2trEvent, BtcUtxoInfo};
+use crate::bitcoin::types::{Action, BlockInfo, BtcP2trEvent, BtcUtxoInfo, BTC_NETWORK};
 use crate::rpc_client::{self, BitcoinRpcClient};
 use crate::sqlx_postgres::bitcoin::{self as db};
+use crate::sqlx_postgres::{get_config, upsert_config};
 use crate::HandlerStorage;
 
 use std::collections::HashMap;
@@ -143,6 +144,23 @@ impl Client {
             header,
             body: block,
         })
+    }
+
+    pub async fn assert_environment(&self, pool: &PgPool) -> Result<(), Error> {
+        let env = *BTC_NETWORK.get().unwrap();
+        //compare db info
+        if let Some(info) = get_config::<_, Network>(pool, "network_info").await? {
+            if env != info {
+                return Err(Error::Other(
+                    "Client: database has different network info".into(),
+                ));
+            }
+        }
+
+        upsert_config(pool, "network_info", &env).await?;
+        log::debug!("{:?}", env);
+
+        Ok(())
     }
 }
 

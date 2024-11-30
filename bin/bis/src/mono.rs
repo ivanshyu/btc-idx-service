@@ -133,6 +133,8 @@ async fn create_harvester(
         rpc_pwd,
     );
 
+    client.assert_environment(&pg_pool).await?;
+
     let client = Arc::new(client);
 
     let processor = Processor::new(pg_pool, client.clone(), network, event_sender).await?;

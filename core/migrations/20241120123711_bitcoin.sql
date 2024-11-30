@@ -77,3 +77,8 @@ CREATE TABLE IF NOT EXISTS statistic_btc_balances
     last_updated TIMESTAMPTZ NOT NULL,
     PRIMARY KEY(address, datetime_hour)
 );
+
+CREATE TABLE IF NOT EXISTS config (
+    key VARCHAR(64) UNIQUE NOT NULL,
+    data JSONB NOT NULL
+);

@@ -1,9 +1,11 @@
 pub mod bitcoin;
 
+use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{
     migrate::Migrator,
-    postgres::{PgPoolOptions, PgQueryResult},
-    Error as SqlxError, PgPool,
+    postgres::{PgPoolOptions, PgQueryResult, PgRow},
+    types::Json,
+    Error as SqlxError, Executor, PgPool, Postgres, Row,
 };
 
 pub static EMBEDDED_MIGRATE: Migrator = sqlx::migrate!();
@@ -40,4 +42,42 @@ pub fn ensure_affected(count: u64) -> impl FnOnce(PgQueryResult) -> sqlx::Result
             Err(SqlxError::RowNotFound)
         }
     }
+}
+
+pub async fn upsert_config<'e, T, U>(conn: T, key: &str, data: U) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+    U: Serialize + Send,
+{
+    sqlx::query(
+        r#"
+        INSERT INTO config (key, data)
+        VALUES ($1, $2)
+        ON CONFLICT (key)
+        DO UPDATE SET data = $2
+        WHERE config.key = $1
+        "#,
+    )
+    .bind(key)
+    .bind(Json(data))
+    .execute(conn)
+    .await
+    .and_then(ensure_affected(1))
+}
+
+pub async fn get_config<'e, T, U>(conn: T, key: &str) -> Result<Option<U>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+    U: DeserializeOwned + Unpin + Send,
+{
+    sqlx::query(
+        r#"
+        SELECT data FROM config
+        WHERE key = $1
+        "#,
+    )
+    .bind(key)
+    .try_map(|row: PgRow| Ok(row.try_get::<Json<U>, _>(0)?.0))
+    .fetch_optional(conn)
+    .await
 }
