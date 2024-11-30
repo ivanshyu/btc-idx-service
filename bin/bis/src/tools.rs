@@ -24,17 +24,27 @@ pub struct Opts {
 
 #[derive(Parser, Debug, Clone)]
 pub enum Subcommand {
+    /// Scan blocks from `from` to `to`
     ScanBlock {
         #[clap(short, long, env = "FROM")]
         from: usize,
         #[clap(short, long, env = "TO")]
         to: usize,
     },
+    /// Terminate the harvester
+    Terminate,
+    /// Pause the harvester
+    Pause,
+    /// Resume the harvester
+    Resume,
 }
 
 pub fn run(opts: Opts) -> anyhow::Result<()> {
     match opts.subcommand {
         Subcommand::ScanBlock { from, to } => scan_block(opts, from, to),
+        Subcommand::Terminate => terminate(opts),
+        Subcommand::Pause => pause(opts),
+        Subcommand::Resume => resume(opts),
     }
 }
 
@@ -50,6 +60,75 @@ fn scan_block(opts: Opts, from: usize, to: usize) -> anyhow::Result<()> {
             "http://{}/api/v1/protected/harvester/scan/{}/{}",
             opts.host, from, to
         );
+
+        let response = client.post(&url).send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!(
+                "Failed to scan blocks: {} - {}",
+                response.status(),
+                response.text().await?
+            );
+        }
+        Ok(())
+    })
+}
+
+fn terminate(opts: Opts) -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime needed to continue. qed");
+
+    rt.block_on(async {
+        let client = Client::new();
+        let url = format!("http://{}/api/v1/protected/harvester/terminate", opts.host);
+
+        let response = client.post(&url).send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!(
+                "Failed to scan blocks: {} - {}",
+                response.status(),
+                response.text().await?
+            );
+        }
+        Ok(())
+    })
+}
+
+fn pause(opts: Opts) -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime needed to continue. qed");
+
+    rt.block_on(async {
+        let client = Client::new();
+        let url = format!("http://{}/api/v1/protected/harvester/pause", opts.host);
+
+        let response = client.post(&url).send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!(
+                "Failed to scan blocks: {} - {}",
+                response.status(),
+                response.text().await?
+            );
+        }
+        Ok(())
+    })
+}
+
+fn resume(opts: Opts) -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime needed to continue. qed");
+
+    rt.block_on(async {
+        let client = Client::new();
+        let url = format!("http://{}/api/v1/protected/harvester/resume", opts.host);
 
         let response = client.post(&url).send().await?;
 
