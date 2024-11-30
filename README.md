@@ -1,12 +1,12 @@
 # Bitcoin Indexer Service
 ## Complete Features
 ### Basic Requirements
-- [o] Understand Bitcoin Ledger, Transaction and UTXO
-- [o] Differentiate P2TR and other Bitcoin Locking Scripts
-- [o] Design a pipeline that processes Bitcoin ledger (Block ⇒ Transaction ⇒ UTXO ⇒ Balance)
-- [o] Design a scalable RDBMS schema
-- [o] Store Aggregated data, such as Snapshot of Balance, if needed
-- [o] Use de facto standard Bitcoin JSON RPC (QuickNode free tier) for developing and testing
+- [✅] Understand Bitcoin Ledger, Transaction and UTXO
+- [✅] Differentiate P2TR and other Bitcoin Locking Scripts
+- [✅] Design a pipeline that processes Bitcoin ledger (Block ⇒ Transaction ⇒ UTXO ⇒ Balance)
+- [✅] Design a scalable RDBMS schema
+- [✅] Store Aggregated data, such as Snapshot of Balance, if needed
+- [✅] Use de facto standard Bitcoin JSON RPC (QuickNode free tier) for developing and testing
 
 ### Feature Requirements
 #### Architecture
@@ -43,15 +43,15 @@ Other Libs:
 ```
 
 ### Advanced Requirements
-- [o] Automatically indexing new Bitcoin blocks
-- [o] Multithreading
-- [o] Set up configuration options using configuration file
-- [x] View logs on visualization dashboard (Kibana, Grafana, ...)
-- [o] Docker Compose
-- [x] Kubernetes
-- [x] Deploy on cloud computing platforms (AWS, Azure, GCP, ...)
-- [x] CI 
-- [x] CD
+- [✅] Automatically indexing new Bitcoin blocks
+- [✅] Multithreading
+- [✅] Set up configuration options using configuration file
+- [❌] View logs on visualization dashboard (Kibana, Grafana, ...)
+- [✅] Docker Compose
+- [❌] Kubernetes
+- [❌] Deploy on cloud computing platforms (AWS, Azure, GCP, ...)
+- [❌] CI 
+- [❌] CD
 
 ## Run
 ### Build in local with docker
