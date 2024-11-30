@@ -4,7 +4,6 @@ pub mod sqlx_postgres;
 
 use std::fmt::Debug;
 
-use async_trait::async_trait;
 use sqlx::PgPool;
 use tokio::sync::mpsc;
 
@@ -68,19 +67,5 @@ impl HandlerStorage {
 
     pub async fn latest_commited_block(&self) -> Result<u64, anyhow::Error> {
         todo!()
-    }
-}
-
-// for calculate user balance
-#[async_trait]
-pub trait Projection {
-    type Error: std::error::Error;
-    type Store: Send + Sync + 'static;
-
-    async fn project(&self, _conn: &mut Self::Store, _block_num: u64) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    async fn unproject(&self, _conn: &mut Self::Store) -> Result<(), Self::Error> {
-        Ok(())
     }
 }

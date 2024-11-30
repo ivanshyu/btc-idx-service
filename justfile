@@ -47,10 +47,7 @@ build-debug:
 local-pull:
     docker compose -f ./deployment/docker-compose.yaml pull
     docker image prune -f
-
-local-dev:
-	just local-pg local-testnets
-
+	
 local-mono:
     RUST_BACKTRACE=1 RUST_LOG=info,sqlx=warn,reqwest=debug cargo run --bin bis mono
 

@@ -28,9 +28,6 @@ pub enum ApiError {
     #[error("A possible error when converting a `HeaderValue` from a string or byte slice.")]
     ReqwestHeader(#[from] InvalidHeaderValue),
 
-    #[error("Base64 Decode Error: {0}")]
-    Base64Decode(#[from] base64::DecodeError),
-
     #[error("Serde Json Error: {0}")]
     Serde(#[from] serde_json::Error),
 
@@ -92,11 +89,6 @@ impl ApiError {
             ApiError::ReqwestHeader(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ("REQWEST_HEADER_ERROR", None::<String>).into(),
-            ),
-
-            ApiError::Base64Decode(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ("BASE64_DECODE_ERROR", None::<String>).into(),
             ),
 
             ApiError::Serde(_) => (
