@@ -1,7 +1,5 @@
 use bis_core::bitcoin::types::{BtcBalance, BtcBlock, BtcTransaction, BtcUtxoInfo};
 
-use std::collections::HashMap;
-
 use atb_cli::DateTime;
 use bitcoin::{BlockHash, Txid};
 use serde::{Deserialize, Serialize};
@@ -116,12 +114,12 @@ pub enum TimeSpan {
     D,
 }
 
-impl ToString for TimeSpan {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for TimeSpan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TimeSpan::M => "m".to_string(),
-            TimeSpan::W => "w".to_string(),
-            TimeSpan::D => "d".to_string(),
+            TimeSpan::M => write!(f, "m"),
+            TimeSpan::W => write!(f, "w"),
+            TimeSpan::D => write!(f, "d"),
         }
     }
 }
@@ -137,15 +135,16 @@ pub enum Granularity {
     H,
 }
 
-impl ToString for Granularity {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Granularity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Granularity::W => "w".to_string(),
-            Granularity::D => "d".to_string(),
-            Granularity::H => "h".to_string(),
+            Granularity::W => write!(f, "w"),
+            Granularity::D => write!(f, "d"),
+            Granularity::H => write!(f, "h"),
         }
     }
 }
+
 #[derive(Serialize)]
 pub struct AggregatedBalance {
     pub balance: BigDecimal,

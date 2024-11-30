@@ -1,4 +1,4 @@
-use crate::bitcoin::types::{Action, BlockInfo, BtcP2trEvent, BtcUtxoInfo, BTC_NETWORK};
+use crate::bitcoin::types::{Action, BlockInfo, BtcP2trEvent, BtcUtxoInfo};
 use crate::rpc_client::{self, BitcoinRpcClient};
 use crate::sqlx_postgres::bitcoin::{self as db};
 use crate::HandlerStorage;
@@ -6,7 +6,6 @@ use crate::HandlerStorage;
 use std::collections::HashMap;
 use std::convert::Into;
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use atb_types::Utc;
@@ -45,6 +44,10 @@ pub enum Error {
     /// Other Error
     #[error("Other Error: {0}")]
     Other(Box<dyn std::error::Error + Send + Sync + 'static>),
+
+    /// Anyhow Error
+    #[error("Anyhow Error: {0}")]
+    Anyhow(#[from] anyhow::Error),
 }
 pub struct Client {
     name: String,
@@ -113,28 +116,27 @@ impl Client {
     }
 
     pub async fn get_tip_number(&self) -> Result<usize, Error> {
-        (&*self.inner).get_block_count().await.map_err(Into::into)
+        self.inner.get_block_count().await.map_err(Into::into)
     }
 
-    // TODO: future join
     pub async fn scan_block(&self, number: Option<usize>) -> Result<BlockInfo, Error> {
         let (header, block) = match number {
             Some(num) => {
                 let hash = self.inner.get_block_hash(num).await?;
 
-                (
-                    self.inner.get_block_header(&hash).await?,
-                    self.inner.get_block(&hash).await?,
-                )
+                futures::try_join!(
+                    self.inner.get_block_header(&hash),
+                    self.inner.get_block(&hash)
+                )?
             }
             _ => {
                 let num = self.inner.get_block_count().await?;
                 let hash = self.inner.get_block_hash(num).await?;
 
-                (
-                    self.inner.get_block_header(&hash).await?,
-                    self.inner.get_block(&hash).await?,
-                )
+                futures::try_join!(
+                    self.inner.get_block_header(&hash),
+                    self.inner.get_block(&hash)
+                )?
             }
         };
         Ok(BlockInfo {
@@ -193,7 +195,9 @@ impl Processor {
             &block.header.hash,
             block.header.previous_block_hash.as_ref(),
             block_num,
-            Utc.timestamp(block.header.time as i64, 0),
+            Utc.timestamp_opt(block.header.time as i64, 0)
+                .single()
+                .ok_or_else(|| anyhow::anyhow!("Invalid timestamp"))?,
             &BigDecimal::from(block.header.nonce),
             block.header.version.to_consensus(),
             &BigDecimal::from_f64(block.header.difficulty).unwrap_or_default(),

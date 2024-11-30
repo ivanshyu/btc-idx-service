@@ -76,9 +76,8 @@ impl TryFrom<PgRow> for BtcUtxoInfo {
 
         Ok(BtcUtxoInfo {
             owner: Address::from_str(address)
-                .map_err(|e| {
+                .inspect_err(|_| {
                     log::error!("btc utxo info address decode error 1: {}", address);
-                    e
                 })
                 .and_then(|a| a.require_network(*BTC_NETWORK.get().unwrap()))
                 .map_err(|e| {
@@ -162,6 +161,7 @@ where
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn upsert_block<'e, T>(
     conn: T,
     hash: &BlockHash,
@@ -522,16 +522,6 @@ where
     .execute(conn)
     .await
     .and_then(ensure_affected(1))
-}
-
-pub async fn get_static_balances<'e, T>(
-    conn: T,
-    address: &Address<NetworkChecked>,
-) -> Result<Option<BigDecimal>, sqlx::Error>
-where
-    T: Executor<'e, Database = Postgres>,
-{
-    todo!()
 }
 
 pub async fn increment_static_balances<'e, T>(

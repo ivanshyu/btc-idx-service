@@ -95,7 +95,7 @@ pub async fn build_service_config(
     network: Network,
 ) -> anyhow::Result<ServiceConfig> {
     log::info!("Configuring bitcoin");
-    let pg_pool: PgPool = connect_and_migrate(database_url, 5).await?.into();
+    let pg_pool: PgPool = connect_and_migrate(database_url, 5).await?;
 
     let (event_sender, aggregator) = create_aggregator(pg_pool.clone()).await?;
     task_service.add_task(aggregator.to_boxed_task_fn());

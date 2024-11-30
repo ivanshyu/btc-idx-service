@@ -138,10 +138,7 @@ impl Harvester {
             log::info!("harvester desired end height: {}", h);
             h
         } else {
-            self.client
-                .get_tip_number()
-                .await
-                .map_err(|e| Error::Client(e.into()))?
+            self.client.get_tip_number().await?
         };
 
         log::info!("harvester desired height: {}", desired_height);
@@ -167,11 +164,7 @@ impl Harvester {
                 };
 
                 log::info!("harvester start_num: {}", start_num);
-                let start_block = self
-                    .client
-                    .scan_block(Some(start_num))
-                    .await
-                    .map_err(|e| Error::Client(e.into()))?;
+                let start_block = self.client.scan_block(Some(start_num)).await?;
 
                 (self.last_processed_block.insert(start_block), true)
             }
@@ -212,10 +205,7 @@ impl Harvester {
         while prev_block.header.height < desired_height {
             let block_num = prev_block.header.height + 1;
 
-            let block = client
-                .scan_block(Some(block_num))
-                .await
-                .map_err(|e| Error::Client(e.into()))?;
+            let block = client.scan_block(Some(block_num)).await?;
 
             if let Some(prev) = block.header.previous_block_hash {
                 if prev_block.header.hash == prev {
@@ -247,11 +237,7 @@ impl Harvester {
             }
         }
 
-        let start_block = self
-            .client
-            .scan_block(Some(from))
-            .await
-            .map_err(|e| Error::Client(e.into()))?;
+        let start_block = self.client.scan_block(Some(from)).await?;
 
         let _ = self.last_processed_block.insert(start_block);
         Ok(())

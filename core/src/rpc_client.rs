@@ -147,7 +147,6 @@ impl BitcoinRpcClient {
                     .ok_or_else(|| anyhow::anyhow!("missing result").into())
             })
             .and_then(|s| encode::deserialize_hex(&s).map_err(|e| anyhow!(e).into()))
-            .into()
     }
 
     pub async fn get_block_header(

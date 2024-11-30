@@ -21,9 +21,6 @@ pub enum ApiError {
     #[error("Params Invalid: {0}")]
     ParamsInvalid(BoxDynError),
 
-    #[error("{0}")]
-    BadRequest(BoxDynError),
-
     #[error("Not Found: {0}")]
     NotFound(BoxDynError),
 
@@ -89,8 +86,6 @@ impl ApiError {
                 StatusCode::BAD_REQUEST,
                 ("INVALID_PARAMS_ERROR", Some(e)).into(),
             ),
-
-            ApiError::BadRequest(e) => (StatusCode::BAD_REQUEST, ("OTHER_ERROR", Some(e)).into()),
 
             ApiError::NotFound(e) => (StatusCode::NOT_FOUND, ("NOT_FOUND_ERROR", Some(e)).into()),
             // ===== 500 Series Error =====

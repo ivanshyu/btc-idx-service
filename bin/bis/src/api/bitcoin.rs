@@ -10,7 +10,6 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use bitcoin::{BlockHash, Txid};
-use serde_json::json;
 
 pub fn routes(
     scope: &'static str,
@@ -125,14 +124,14 @@ pub mod processed {
 pub mod aggregated {
     use super::*;
     use crate::api::models::{AggregatedBalance, AggregatedBalanceParams, Granularity, TimeSpan};
-    use atb_cli::DateTime;
     use bis_core::bitcoin::types::BTC_NETWORK;
-    use sqlx::types::chrono;
 
     use std::str::FromStr;
 
+    // use atb_cli::DateTime;
     use bitcoin::Address;
     use web::Query;
+    // use sqlx::types::chrono;
 
     #[get("aggregated/p2tr/{address}")]
     pub async fn balance_snapshots(
