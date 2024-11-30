@@ -15,20 +15,31 @@
 Bitcoin Libs:
 - bitcoin: Bitcoin Core Libs
 
+Types:
+- bigdecimal: Decimal type for financial calculation
+- serde_json: Json struct
+
 SQL Libs:
 - sqlx: Postgres Lib for query and migration
 
 Web Libs:
 - actix-web: Web framework
 - reqwest: HTTP client
+- serde: Serialize and Deserialize for structs
 
 Error Handling Libs:
-- anyhow: Convenient Error type
+- anyhow: Convenient error type
 - thiserror: Error type and error handling
 
 Logging Libs:
-- env_logger: Logging
-- tracing: Distributed Tracing
+- log: Logging
+
+Other Libs:
+- atb: A tool box for Rust
+- tokio: Runtime for async Rust
+- once_cell: Once cell pattern for lazy initialization
+- futures: Future lib
+
 ```
 
 ### Advanced Requirements
