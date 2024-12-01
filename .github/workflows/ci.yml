@@ -28,7 +28,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: '${{ runner.os }}-cargo-${{ hashFiles(''**/Cargo.lock'') }}'
+              key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Start services with docker-compose
         run: |
           docker-compose up -d
