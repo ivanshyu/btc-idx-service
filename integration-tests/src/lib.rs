@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use bis_core::bitcoin::aggregator::Aggregator;
-    use bis_core::bitcoin::harvester::client::{Client, Processor};
     use bis_core::bitcoin::harvester::Harvester;
+    use bis_core::bitcoin::harvester::{client::Client, processor::Processor};
     use bis_core::bitcoin::types::{AggregatorMsg, BTC_NETWORK};
     use bis_core::sqlx_postgres::{bitcoin as db, connect_and_migrate, EMBEDDED_MIGRATE};
 
@@ -88,20 +88,15 @@ mod tests {
 
             std::thread::sleep(std::time::Duration::from_secs(2));
 
-            // let _ = Command::new("docker")
-            //     .args([
-            //         "exec",
-            //         "bitcoin-regtest",
-            //         "rm",
-            //         "-rf",
-            //         "/bitcoin/.bitcoin/regtest",
-            //     ])
-            //     .output();
-
-            // Command::new("docker")
-            //     .args(["stop", &self.container_name])
-            //     .output()
-            //     .expect("Failed to stop container");
+            let _ = Command::new("docker")
+                .args([
+                    "exec",
+                    "bitcoin-regtest",
+                    "rm",
+                    "-rf",
+                    "/bitcoin/.bitcoin/regtest",
+                ])
+                .output();
         }
     }
 
@@ -180,6 +175,11 @@ mod tests {
             let pg_pool = connect_postgres().await;
 
             println!("created postgres pool");
+
+            if db::get_latest_block_num(&pg_pool).await.unwrap().is_some() {
+                panic!("Test database is not empty, please drop it before running the test");
+            }
+
             let (event_sender, aggregator) = create_aggregator(pg_pool.clone()).await.unwrap();
 
             println!("created aggregator");
@@ -239,6 +239,7 @@ mod tests {
             .unwrap();
 
         rt.block_on(async move {
+            let mut tx = handler.storage.conn.begin().await.unwrap();
             loop {
                 let current_indexer_block = db::get_latest_block_num(&handler.storage.conn)
                     .await

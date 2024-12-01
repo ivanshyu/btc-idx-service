@@ -53,11 +53,26 @@ Other Libs:
 - [❌] CI 
 - [❌] CD
 
+### Overall Requirements
+- [✅] Testing
+- [✅] Containerize
+#### Testing
+- [❌] Unit Test
+- [✅] Integration Test
+Integration Test
+
+```bash
+just local-test
+```
+
+Note: If you already have the test database `integration_tests`, you need to drop it before running the test again.
+
+
 ## Run
 ### Build in local with docker
 #### Start Postgres and Adminer(Visualize DB at http://localhost:8888)
 ```bash
-local-pg
+just local-pg
 ```
 
 #### Start Bitcoin with QuickNode
@@ -67,12 +82,12 @@ No need to run any container, just use the default config
 
 #### Start Bitcoin Testnet
 ```bash
-local-testnet
+just local-testnet
 ```
 
 #### Start Bitcoin Regtest
 ```bash
-local-reg
+just local-reg
 ```
 
 To switch the network, go to `Network Config / Environment` for more details.

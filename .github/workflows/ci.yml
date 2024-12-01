@@ -1,0 +1,51 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches:
+            - "master"
+
+env:
+    GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    RUST_BACKTRACE: 1
+    CARGO_NET_GIT_FETCH_WITH_CLI: true
+
+jobs:
+    mono:
+        runs-on: ubuntu-21
+
+        steps:
+          - uses: actions/checkout@v3
+
+          - name: Install Rust
+            uses: actions-rs/toolchain@v1
+            with:
+                  profile: minimal
+                  toolchain: stable
+                  override: true
+                  components: rustfmt, clippy
+
+          - name: Cache dependencies
+            uses: actions/cache@v3
+            with:
+                  path: |
+                    ~/.cargo/registry
+                    ~/.cargo/git
+                    target
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+          - name: Start services with docker-compose
+            run: |
+              docker-compose up -d
+                  sleep 10
+
+          - name: Export Github Credentials
+            run: |-
+                git config --global credential.helper store
+                echo "https://${GH_TOKEN}:${GH_TOKEN}@github.com" > ~/.git-credentials
+
+          - name: Clippy and Cargo Build
+              run: |-
+                echo $TAG                  
+                cargo test --package integration-tests --lib -- tests::test_bitcoin_transactions --exact --show-output --nocapture

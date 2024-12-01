@@ -47,7 +47,7 @@ build-debug:
 local-pull:
     docker compose -f ./deployment/docker-compose.yaml pull
     docker image prune -f
-	
+
 local-mono:
     RUST_BACKTRACE=1 RUST_LOG=info,sqlx=warn,reqwest=debug cargo run --bin bis mono
 
@@ -62,5 +62,13 @@ local-reg:
 	test -d ~/bitcoin-data/regtest || mkdir -p ~/bitcoin-data/regtest
 	docker compose -f ./deployment/docker-compose.yaml up -d btc-regtest
 
+local-reg-clean:
+	docker exec bitcoin-regtest rm -rf /bitcoin/.bitcoin/regtest
+
 local-down:
 	docker compose -f ./deployment/docker-compose.yaml down
+
+pure-test:
+	cargo test --package integration-tests --lib -- tests::test_bitcoin_transactions --exact --show-output --nocapture
+
+local-test: local-pg local-reg pure-test
