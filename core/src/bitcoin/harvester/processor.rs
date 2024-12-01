@@ -15,7 +15,7 @@ use bitcoin::blockdata::transaction::OutPoint;
 use bitcoin::{Address, BlockHash, Network};
 use num_traits::{FromPrimitive, Zero};
 use sqlx::types::chrono::TimeZone;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(thiserror::Error, Debug)]
@@ -52,7 +52,7 @@ pub enum Error {
 
 pub struct Processor {
     conn: PgPool,
-    provider: Arc<Client>,
+    _provider: Arc<Client>,
     network: Network,
     event_sender: UnboundedSender<AggregatorMsg>,
 }
@@ -60,13 +60,13 @@ pub struct Processor {
 impl Processor {
     pub async fn new(
         conn: PgPool,
-        provider: Arc<Client>,
+        _provider: Arc<Client>,
         network: Network,
         event_sender: UnboundedSender<AggregatorMsg>,
     ) -> Result<Self, Error> {
         Ok(Self {
             conn,
-            provider,
+            _provider,
             network,
             event_sender,
         })
@@ -85,6 +85,46 @@ impl Processor {
     pub async fn process(&mut self, block: &BlockInfo) -> Result<(), Error> {
         let mut db_tx = self.conn.begin().await?;
 
+        self.process_block(block, &mut db_tx).await?;
+
+        db_tx.commit().await?;
+
+        Ok(())
+    }
+
+    pub async fn process_fork(
+        &mut self,
+        fork_blocks_reversed: Vec<BlockInfo>,
+    ) -> Result<Vec<BtcP2trEvent>, Error> {
+        let mut db_tx = self.conn.begin().await?;
+
+        let begin_block_num = fork_blocks_reversed
+            .last()
+            .expect("checked not empty")
+            .header
+            .height;
+
+        db::delete_blocks_since(&mut *db_tx, begin_block_num).await?;
+
+        db::unspend_utxos_spent_since_block(&mut *db_tx, begin_block_num).await?;
+
+        self.event_sender
+            .send(AggregatorMsg::Reorg(begin_block_num))
+            .unwrap();
+        // process forks blocks in reverse order
+        for block in fork_blocks_reversed {
+            self.process_block(&block, &mut db_tx).await?;
+        }
+
+        db_tx.commit().await?;
+        Ok(vec![])
+    }
+
+    async fn process_block(
+        &mut self,
+        block: &BlockInfo,
+        db_tx: &mut PgConnection,
+    ) -> Result<(), Error> {
         let block_num = block.header.height;
         // log::info!("Processing block {:?}", &block);
         // TODO: check the block is confirmed
@@ -141,7 +181,6 @@ impl Processor {
                     Some(utxo) => utxo,
                 };
 
-                // if execute && rollback_spent_utxos.remove(&txin.previous_output).is_none()
                 db::spend_utxo(&mut *db_tx, utxo.txid, utxo.vout, block_num).await?;
 
                 if let Some(balance) = balance_updates.get_mut(&utxo.owner) {
@@ -210,12 +249,8 @@ impl Processor {
                 self.event_sender.send(AggregatorMsg::Event(event)).unwrap();
             }
         }
-
-        db_tx.commit().await?;
-
         Ok(())
     }
-
     pub fn db_connection(&self) -> HandlerStorage {
         HandlerStorage {
             conn: self.conn.clone(),

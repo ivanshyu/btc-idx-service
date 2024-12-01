@@ -93,6 +93,11 @@ impl BtcP2trEvent {
             is_coinbase,
         }
     }
+
+    pub fn reorg(&mut self) {
+        self.action = Action::Reorg;
+        self.amount = &self.amount * &BigDecimal::from(-1);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -106,6 +111,7 @@ pub enum AggregatorMsg {
 pub enum Action {
     Send = 0,
     Receive = 1,
+    Reorg = 2,
 }
 
 impl TryFrom<i16> for Action {
@@ -115,6 +121,7 @@ impl TryFrom<i16> for Action {
         match v {
             x if x == Action::Receive as i16 => Ok(Action::Receive),
             x if x == Action::Send as i16 => Ok(Action::Send),
+            x if x == Action::Reorg as i16 => Ok(Action::Reorg),
             _ => Err(anyhow::anyhow!("invalid action type: {}", v)),
         }
     }

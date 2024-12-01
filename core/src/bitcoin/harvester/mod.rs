@@ -198,7 +198,7 @@ impl Harvester {
                     log::info!("✅ {} Finished Processing block", self.name);
                 } else {
                     log::info!("❗️{} Detected fork - Preparing reorg", self.name);
-                    // self.handle_reorg(block.clone()).await?;
+                    self.handle_reorg(block.clone()).await?;
                 }
             }
             self.last_processed_block = Some(block);

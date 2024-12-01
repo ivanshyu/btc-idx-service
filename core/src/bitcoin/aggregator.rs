@@ -65,10 +65,6 @@ impl Aggregator {
         Ok(())
     }
 
-    async fn handle_reorg(&mut self, _block_number: usize) -> Result<(), Error> {
-        Ok(())
-    }
-
     async fn handle_event(&mut self, event: BtcP2trEvent) -> Result<(), Error> {
         let mut tx = self.pool.begin().await?;
 
@@ -87,6 +83,29 @@ impl Aggregator {
             self.last_block_number = block_number;
             self.commit_pending_events().await?;
         }
+
+        Ok(())
+    }
+
+    async fn handle_reorg(&mut self, block_number: usize) -> Result<(), Error> {
+        let mut tx = self.pool.begin().await?;
+
+        let mut events = db::get_p2tr_events_since_block(&mut *tx, block_number).await?;
+
+        let last_block_number = events.last().unwrap().block_number;
+        events.iter_mut().for_each(|event| event.reorg());
+
+        for event in events {
+            self.insert_event(&mut tx, event.clone()).await?;
+
+            self.update_total_balance(&mut tx, event.clone()).await?;
+            self.update_statistic_balance_change(&mut tx, event).await?;
+        }
+        let _ = db::pull_pending_p2tr_events(&mut *tx, last_block_number).await?;
+
+        tx.commit().await?;
+
+        self.last_block_number = last_block_number;
 
         Ok(())
     }

@@ -228,6 +228,23 @@ where
     .map(|_|())
 }
 
+// delete block cascade delete transactions & utxos
+pub async fn delete_blocks_since<'e, T>(conn: T, block_num: usize) -> Result<(), sqlx::Error>
+where
+    T: sqlx::Executor<'e, Database = sqlx::postgres::Postgres>,
+{
+    sqlx::query(
+        r#"
+        DELETE FROM btc_blocks 
+        WHERE number >= $1
+    "#,
+    )
+    .bind(block_num as i64)
+    .execute(conn)
+    .await
+    .map(|_| ())
+}
+
 pub async fn get_transaction<'e, T>(conn: T, txid: &Txid) -> Result<BtcTransaction, sqlx::Error>
 where
     T: sqlx::Executor<'e, Database = sqlx::postgres::Postgres>,
@@ -306,10 +323,10 @@ where
     .and_then(ensure_affected(1))
 }
 
-async fn get_utxos_at_block<'e, T>(
+pub async fn unspend_utxos_spent_since_block<'e, T>(
     conn: T,
     block_num: usize,
-) -> Result<Vec<BtcUtxoInfo>, sqlx::Error>
+) -> Result<(), sqlx::Error>
 where
     T: Executor<'e, Database = Postgres>,
 {
@@ -317,39 +334,15 @@ where
 
     sqlx::query(
         r#"
-        SELECT address, txid, vout, amount, block_number, spent_block 
-        FROM btc_utxos
-        WHERE block_number = $1
+        UPDATE btc_utxos
+        SET spent_block = NULL
+        WHERE spent_block >= $1
         "#,
     )
     .bind(block_num)
-    .try_map(BtcUtxoInfo::try_from)
-    .fetch_all(conn)
+    .execute(conn)
     .await
-    .map_err(Into::into)
-}
-
-async fn get_utxos_spent_at_block<'e, T>(
-    conn: T,
-    block_num: usize,
-) -> Result<Vec<BtcUtxoInfo>, sqlx::Error>
-where
-    T: Executor<'e, Database = Postgres>,
-{
-    let block_num = BigDecimal::from_u64(block_num as u64);
-
-    sqlx::query(
-        r#"
-        SELECT address, txid, vout, amount, block_number, spent_block 
-        FROM btc_utxos
-        WHERE spent_block = $1
-        "#,
-    )
-    .bind(block_num)
-    .try_map(BtcUtxoInfo::try_from)
-    .fetch_all(conn)
-    .await
-    .map_err(Into::into)
+    .map(|_| ())
 }
 
 pub async fn get_unspent_utxos_by_owner<'e, T>(
@@ -563,6 +556,29 @@ where
         log::error!("create_p2tr_event error: {}, {:?}", e, event);
         e
     })
+}
+
+pub async fn get_p2tr_events_since_block<'e, T>(
+    conn: T,
+    block_num: usize,
+) -> Result<Vec<BtcP2trEvent>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    let block_num = BigDecimal::from_u64(block_num as u64);
+
+    sqlx::query(
+        r#"
+        SELECT block_number, tx_hash, address, amount, action, false, sequence_id 
+        FROM btc_p2tr_events 
+        WHERE block_number >= $1
+        "#,
+    )
+    .bind(block_num)
+    .try_map(BtcP2trEvent::try_from)
+    .fetch_all(conn)
+    .await
+    .map_err(Into::into)
 }
 
 pub async fn get_btc_balance<'e, T>(
