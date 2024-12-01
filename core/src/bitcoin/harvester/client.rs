@@ -9,7 +9,7 @@ use std::convert::Into;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use bitcoin::Network;
+use bitcoin::{BlockHash, Network};
 use sqlx::PgPool;
 
 pub struct Client {
@@ -66,6 +66,18 @@ impl Client {
                 )?
             }
         };
+        Ok(BlockInfo {
+            header,
+            body: block,
+        })
+    }
+
+    pub async fn scan_block_by_hash(&self, hash: &BlockHash) -> Result<BlockInfo, Error> {
+        let (header, block) = futures::try_join!(
+            self.inner.get_block_header(&hash),
+            self.inner.get_block(&hash)
+        )?;
+
         Ok(BlockInfo {
             header,
             body: block,

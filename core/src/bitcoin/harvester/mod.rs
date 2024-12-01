@@ -18,6 +18,8 @@ use tokio::{
     time::sleep,
 };
 
+use super::types::BtcP2trEvent;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Sqlx error: `{0}`")]
@@ -141,86 +143,67 @@ impl Harvester {
         };
 
         log::info!("harvester desired height: {}", desired_height);
-        //
-        let (prev_block, process_first) = match self.last_processed_block {
-            Some(ref mut block) => (block, false),
-            None => {
-                // first time ever handling events
-                log::info!("🤖 harvester first time handling events after start");
 
-                let last_processed_block =
-                    db::get_latest_block_num(&self.block_processor.db_connection().conn).await?;
-                log::info!(
-                    "harvester last processed block in db: {}",
-                    last_processed_block.unwrap_or(0)
-                );
+        let process_first = if self.last_processed_block.is_none() {
+            // first time ever handling events
+            log::info!("🤖 harvester first time handling events after start");
 
-                log::info!("harvester start_height in config: {:?}", self.start_height);
+            let last_processed_block =
+                db::get_latest_block_num(&self.block_processor.db_connection().conn).await?;
+            log::info!(
+                "harvester last processed block in db: {}",
+                last_processed_block.unwrap_or(0)
+            );
 
-                let start_num = match last_processed_block {
-                    Some(num) => max(num + 1, self.start_height.unwrap_or(desired_height)),
-                    None => self.start_height.unwrap_or(desired_height),
-                };
+            log::info!("harvester start_height in config: {:?}", self.start_height);
 
-                log::info!("harvester start_num: {}", start_num);
-                let start_block = self.client.scan_block(Some(start_num)).await?;
+            let start_num = match last_processed_block {
+                Some(num) => max(num + 1, self.start_height.unwrap_or(desired_height)),
+                None => self.start_height.unwrap_or(desired_height),
+            };
 
-                (self.last_processed_block.insert(start_block), true)
-            }
+            log::info!("harvester start_num: {}", start_num);
+            let start_block = self.client.scan_block(Some(start_num)).await?;
+
+            self.last_processed_block = Some(start_block);
+            true
+        } else {
+            false
         };
 
-        Self::process_blocks(
-            &self.name,
-            &self.client,
-            &mut self.block_processor,
-            prev_block,
-            desired_height,
-            process_first,
-        )
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn process_blocks(
-        name: &str,
-        client: &Client,
-        block_processor: &mut Processor,
-        prev_block: &mut BlockInfo,
-        desired_height: usize,
-        process_first: bool,
-    ) -> Result<(), Error> {
         if process_first {
+            let block = self.last_processed_block.as_ref().unwrap();
             log::info!(
                 "🤖 {} Processing first block {}",
-                name,
-                prev_block.header.height
+                self.name,
+                block.header.height
             );
-            block_processor.process(prev_block).await?;
-            log::info!("✅ {} Finished Processing first block", name);
+            self.block_processor.process(block).await?;
+            log::info!("✅ {} Finished Processing first block", self.name);
         }
 
-        // Otherwise process until we reach the head
-        while prev_block.header.height < desired_height {
-            let block_num = prev_block.header.height + 1;
+        // 處理後續區塊
+        while let Some(prev_block) = &self.last_processed_block {
+            if prev_block.header.height >= desired_height {
+                break;
+            }
 
-            let block = client.scan_block(Some(block_num)).await?;
+            let block_num = prev_block.header.height + 1;
+            let block = self.client.scan_block(Some(block_num)).await?;
 
             if let Some(prev) = block.header.previous_block_hash {
                 if prev_block.header.hash == prev {
-                    log::info!("🤖 {} Processing block {}", name, block_num);
-                    block_processor.process(&block).await?;
-                    log::info!("✅ {} Finished Processing block", name);
+                    log::info!("🤖 {} Processing block {}", self.name, block_num);
+                    self.block_processor.process(&block).await?;
+                    log::info!("✅ {} Finished Processing block", self.name);
                 } else {
-                    log::info!("❗️{} Detected fork - Preparing reorg", name);
-                    // Self::handle_reorg(name, client, block_processor, block.clone()).await
+                    log::info!("❗️{} Detected fork - Preparing reorg", self.name);
+                    // self.handle_reorg(block.clone()).await?;
                 }
             }
-
-            //Just store the whole Block type, convert the interface to return &Hash
-            //instead of Hash (copied)
-            *prev_block = block
+            self.last_processed_block = Some(block);
         }
+
         Ok(())
     }
 
@@ -241,6 +224,100 @@ impl Harvester {
         let _ = self.last_processed_block.insert(start_block);
         Ok(())
     }
+
+    /// Handle blockchain reorganization when detected
+    pub async fn handle_reorg(
+        &mut self,
+        head_block: BlockInfo,
+    ) -> Result<Vec<BtcP2trEvent>, Error> {
+        // If head has the same height but different hash, then there's a fork
+        log::info!("❗️{} Reorg started", self.name);
+
+        let head_block_number = head_block.header.height;
+        let fork_blocks_reversed = self.get_fork_blocks(head_block).await?;
+
+        let fork_origin = fork_blocks_reversed
+            .last()
+            .expect("blocks should exist. qed")
+            .header
+            .height;
+
+        log::info!(
+            "🔧 {} Reorg from {} to {}",
+            self.name,
+            fork_origin,
+            head_block_number
+        );
+        // let events = self
+        //     .block_processor
+        //     .process_fork(fork_blocks_reversed)
+        //     .await
+        //     .map_err(|e| Error::Other(e.into()))?;
+        let events = vec![];
+
+        log::info!("💫 {} Reorg complete", self.name);
+        Ok(events)
+    }
+
+    pub async fn get_fork_blocks(&self, block: BlockInfo) -> Result<Vec<BlockInfo>, Error> {
+        let mut fork_blocks_reversed = Vec::new();
+        let mut current_block = block;
+
+        'found_origin: loop {
+            loop {
+                // Found common ancestor
+                if current_block.header.height == 0
+                    || self
+                        .block_processor
+                        .is_processed(&current_block.header.hash)
+                        .await
+                        .map_err(|e| Error::Other(e.into()))?
+                {
+                    log::trace!(
+                        "🌟 {} Found common ancestor at block {}",
+                        self.name,
+                        current_block.header.height
+                    );
+                    break 'found_origin;
+                }
+
+                fork_blocks_reversed.push(current_block.clone());
+
+                if let Some(parent_hash) = &current_block.header.previous_block_hash {
+                    let parent_block =
+                        self.client
+                            .scan_block_by_hash(parent_hash)
+                            .await
+                            .map_err(|e| {
+                                log::error!("failed to mine_block_by_hash {e}");
+                                Error::Client(e.into())
+                            })?;
+                    current_block = parent_block;
+                } else {
+                    // unreacheable
+                    break;
+                }
+            }
+
+            // Another fork detected during rollback, restarting
+            fork_blocks_reversed.clear();
+            current_block = self
+                .client
+                .scan_block(None)
+                .await
+                .map_err(|e| Error::Client(e.into()))?;
+
+            log::trace!(
+                "📦 {} Current tip: {}, hash: {}",
+                self.name,
+                current_block.header.height,
+                current_block.header.hash
+            );
+        }
+
+        Ok(fork_blocks_reversed)
+    }
+
     // lifetime
 
     pub fn handle(&self) -> CommandHandler {

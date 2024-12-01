@@ -239,7 +239,6 @@ mod tests {
             .unwrap();
 
         rt.block_on(async move {
-            let mut tx = handler.storage.conn.begin().await.unwrap();
             loop {
                 let current_indexer_block = db::get_latest_block_num(&handler.storage.conn)
                     .await
