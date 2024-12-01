@@ -1,7 +1,8 @@
 pub mod client;
+pub mod processor;
 
 use crate::{
-    bitcoin::harvester::client::{Client, Processor},
+    bitcoin::harvester::{client::Client, processor::Processor},
     bitcoin::types::BlockInfo,
     sqlx_postgres::bitcoin as db,
 };
@@ -29,7 +30,7 @@ pub enum Error {
     InvalidDesiredHeight,
 
     #[error("Client: `{0}`")]
-    Client(#[from] client::Error),
+    Client(#[from] processor::Error),
 
     #[error("Other: `{0}`")]
     Other(#[from] Box<dyn std::error::Error + Sync + Send>),
@@ -45,7 +46,6 @@ pub struct Harvester {
     sleep_ms: u64,
     name: String,
     last_processed_block: Option<BlockInfo>,
-    sweep_status: Option<u64>,
 }
 
 impl Harvester {
@@ -69,7 +69,6 @@ impl Harvester {
             sleep_ms,
             name,
             last_processed_block: None,
-            sweep_status: None,
         }
     }
 

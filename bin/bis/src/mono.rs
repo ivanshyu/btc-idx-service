@@ -12,11 +12,8 @@ use atb_tokio_ext::TaskService;
 use bis_core::{
     bitcoin::{
         aggregator::Aggregator,
-        harvester::{
-            client::{Client, Processor},
-            Harvester,
-        },
-        types::{AggregatorMsg, BtcP2trEvent, BTC_NETWORK},
+        harvester::{client::Client, processor::Processor, Harvester},
+        types::{AggregatorMsg, BTC_NETWORK},
     },
     sqlx_postgres::connect_and_migrate,
 };

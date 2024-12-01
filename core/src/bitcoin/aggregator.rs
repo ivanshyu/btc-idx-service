@@ -1,7 +1,7 @@
-use super::types::{Action, AggregatorMsg, BtcP2trEvent};
+use super::types::{AggregatorMsg, BtcP2trEvent};
 use crate::sqlx_postgres::bitcoin as db;
 
-use std::{os::unix::raw::blkcnt_t, sync::Arc};
+use std::sync::Arc;
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
 use atb_types::{prelude::chrono::Timelike, Utc};
@@ -65,7 +65,7 @@ impl Aggregator {
         Ok(())
     }
 
-    async fn handle_reorg(&mut self, block_number: usize) -> Result<(), Error> {
+    async fn handle_reorg(&mut self, _block_number: usize) -> Result<(), Error> {
         Ok(())
     }
 
