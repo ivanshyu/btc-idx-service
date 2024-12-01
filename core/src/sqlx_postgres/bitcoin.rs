@@ -115,6 +115,39 @@ impl TryFrom<PgRow> for BtcBalance {
     }
 }
 
+impl TryFrom<PgRow> for BtcP2trEvent {
+    type Error = sqlx::Error;
+
+    fn try_from(row: PgRow) -> Result<Self, Self::Error> {
+        let block_number = row
+            .try_get::<BigDecimal, _>(0)?
+            .to_u64()
+            .ok_or_else(|| SqlxError::Decode("convert bigdecimal to u64 failed".into()))?;
+
+        let txid = Txid::from_str(row.get(1)).map_err(|e| SqlxError::Decode(e.into()))?;
+
+        let address = Address::from_str(row.get(2))
+            .map_err(|e| SqlxError::Decode(e.into()))?
+            .require_network(*BTC_NETWORK.get().unwrap())
+            .map_err(|e| SqlxError::Decode(e.into()))?;
+
+        let action = row
+            .get::<i16, _>(4)
+            .try_into()
+            .map_err(|_| SqlxError::Decode("convert i16 to action failed".into()))?;
+
+        Ok(Self {
+            block_number: block_number as usize,
+            txid,
+            address,
+            amount: row.get(3),
+            action,
+            is_coinbase: row.get(5),
+            sequence_id: row.try_get::<i64, _>(6).unwrap_or_default(),
+        })
+    }
+}
+
 pub async fn get_latest_block_num<'e, T>(conn: T) -> Result<Option<usize>, sqlx::Error>
 where
     T: sqlx::Executor<'e, Database = sqlx::postgres::Postgres>,
@@ -442,6 +475,61 @@ where
     .execute(conn)
     .await
     .and_then(ensure_affected(1))
+}
+
+pub async fn pull_pending_p2tr_events<'e, T>(
+    conn: T,
+    block_num: usize,
+) -> Result<Vec<BtcP2trEvent>, sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    let block_num = BigDecimal::from_u64(block_num as u64);
+
+    sqlx::query(
+        r#"
+        DELETE FROM pending_btc_p2tr_events
+        WHERE block_number < $1
+        RETURNING block_number, tx_hash, address, amount, action, is_coinbase
+        "#,
+    )
+    .bind(block_num)
+    .try_map(BtcP2trEvent::try_from)
+    .fetch_all(conn)
+    .await
+    .inspect_err(|e| {
+        log::error!("pull_pending_p2tr_events error: {}", e);
+    })
+}
+
+pub async fn create_pending_p2tr_event<'e, T>(
+    conn: T,
+    event: BtcP2trEvent,
+) -> Result<(), sqlx::Error>
+where
+    T: Executor<'e, Database = Postgres>,
+{
+    let block_num = BigDecimal::from_u64(event.block_number as u64);
+
+    sqlx::query(
+        r#"
+        INSERT INTO pending_btc_p2tr_events 
+        (block_number, tx_hash, address, amount, action, is_coinbase) 
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+    )
+    .bind(block_num)
+    .bind(event.txid.to_string())
+    .bind(event.address.to_string())
+    .bind(&event.amount)
+    .bind(event.action as i16)
+    .bind(event.is_coinbase)
+    .execute(conn)
+    .await
+    .inspect_err(|e| {
+        log::error!("create_pending_p2tr_event error: {}, {:?}", e, event);
+    })
+    .map(|_| ())
 }
 
 pub async fn create_p2tr_event<'e, T>(conn: T, event: BtcP2trEvent) -> Result<u64, sqlx::Error>

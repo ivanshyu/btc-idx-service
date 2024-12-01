@@ -71,6 +71,7 @@ pub struct BtcP2trEvent {
     pub address: Address<NetworkChecked>,
     pub amount: BigDecimal,
     pub action: Action,
+    pub is_coinbase: bool,
 }
 
 impl BtcP2trEvent {
@@ -80,6 +81,7 @@ impl BtcP2trEvent {
         address: Address<NetworkChecked>,
         amount: BigDecimal,
         action: Action,
+        is_coinbase: bool,
     ) -> Self {
         Self {
             sequence_id: Default::default(),
@@ -88,8 +90,16 @@ impl BtcP2trEvent {
             address,
             amount,
             action,
+            is_coinbase,
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum AggregatorMsg {
+    Event(BtcP2trEvent),
+    // from the specific block number
+    Reorg(usize),
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]

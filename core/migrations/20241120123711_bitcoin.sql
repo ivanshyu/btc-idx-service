@@ -52,18 +52,19 @@ CREATE TABLE IF NOT EXISTS btc_p2tr_events
     block_number NUMERIC NOT NULL,
     tx_hash VARCHAR(66) NOT NULL,
     address VARCHAR(64) NOT NULL,
-    amount VARCHAR(32) NOT NULL,
+    amount NUMERIC NOT NULL,
     action SMALLINT NOT NULL
 );
 
-
+-- pending events are coinbase events that are not yet committed to the database 
 CREATE TABLE IF NOT EXISTS pending_btc_p2tr_events
 (
     block_number NUMERIC NOT NULL,
     tx_hash VARCHAR(66) NOT NULL,
     address VARCHAR(64) NOT NULL,
-    amount VARCHAR(32) NOT NULL,
-    action SMALLINT NOT NULL    
+    amount NUMERIC NOT NULL,
+    action SMALLINT NOT NULL,
+    is_coinbase BOOLEAN NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS pending_btc_event_idx ON pending_btc_p2tr_events (block_number);

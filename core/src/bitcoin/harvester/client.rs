@@ -1,4 +1,6 @@
-use crate::bitcoin::types::{Action, BlockInfo, BtcP2trEvent, BtcUtxoInfo, BTC_NETWORK};
+use crate::bitcoin::types::{
+    Action, AggregatorMsg, BlockInfo, BtcP2trEvent, BtcUtxoInfo, BTC_NETWORK,
+};
 use crate::rpc_client::{self, BitcoinRpcClient};
 use crate::sqlx_postgres::bitcoin::{self as db};
 use crate::sqlx_postgres::{get_config, upsert_config};
@@ -40,7 +42,7 @@ pub enum Error {
     AddressParse(#[from] ParseError),
 
     #[error("Send event to aggregator error: {0}")]
-    SendEvent(#[from] tokio::sync::mpsc::error::SendError<BtcP2trEvent>),
+    SendEvent(#[from] tokio::sync::mpsc::error::SendError<AggregatorMsg>),
 
     /// Other Error
     #[error("Other Error: {0}")]
@@ -174,7 +176,7 @@ pub struct Processor {
     conn: PgPool,
     provider: Arc<Client>,
     network: Network,
-    event_sender: UnboundedSender<BtcP2trEvent>,
+    event_sender: UnboundedSender<AggregatorMsg>,
 }
 
 impl Processor {
@@ -182,7 +184,7 @@ impl Processor {
         conn: PgPool,
         provider: Arc<Client>,
         network: Network,
-        event_sender: UnboundedSender<BtcP2trEvent>,
+        event_sender: UnboundedSender<AggregatorMsg>,
     ) -> Result<Self, Error> {
         Ok(Self {
             conn,
@@ -325,7 +327,14 @@ impl Processor {
                     _ => Action::Send,
                 };
 
-                let event = BtcP2trEvent::new(block_num, txid, address, value.clone(), action);
+                let event = BtcP2trEvent::new(
+                    block_num,
+                    txid,
+                    address,
+                    value.clone(),
+                    action,
+                    block_tx.is_coinbase(),
+                );
 
                 // if let Some(old_event) = rollback_events.remove(&event.get_key()) {
                 //     if event.block_number != old_event.block_number {
@@ -340,7 +349,7 @@ impl Processor {
                 //             .await?;
                 //     }
                 // }
-                self.event_sender.send(event)?;
+                self.event_sender.send(AggregatorMsg::Event(event)).unwrap();
             }
         }
 

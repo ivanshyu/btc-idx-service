@@ -1,7 +1,7 @@
-use super::types::{Action, BtcP2trEvent};
+use super::types::{Action, AggregatorMsg, BtcP2trEvent};
 use crate::sqlx_postgres::bitcoin as db;
 
-use std::sync::Arc;
+use std::{os::unix::raw::blkcnt_t, sync::Arc};
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
 use atb_types::{prelude::chrono::Timelike, Utc};
@@ -20,21 +20,23 @@ pub enum Error {
 }
 
 pub struct Aggregator {
-    receiver: mpsc::UnboundedReceiver<BtcP2trEvent>,
+    receiver: mpsc::UnboundedReceiver<AggregatorMsg>,
     pool: PgPool,
     shutdown_notify: Arc<Notify>,
+    last_block_number: usize,
 }
 
 impl Aggregator {
     pub fn new(
         pool: PgPool,
-        receiver: mpsc::UnboundedReceiver<BtcP2trEvent>,
+        receiver: mpsc::UnboundedReceiver<AggregatorMsg>,
         shutdown_notify: Arc<Notify>,
     ) -> Self {
         Self {
             receiver,
             pool,
             shutdown_notify,
+            last_block_number: 0,
         }
     }
 
@@ -45,7 +47,10 @@ impl Aggregator {
 
                 event = self.receiver.recv() => {
                     match event {
-                        Some(event) => self.handle_event(event).await?,
+                        Some(AggregatorMsg::Event(event)) => self.handle_event(event).await?,
+                        Some(AggregatorMsg::Reorg(block_number)) => {
+                            self.handle_reorg(block_number).await?
+                        }
                         None => break,
                     }
                 }
@@ -60,15 +65,46 @@ impl Aggregator {
         Ok(())
     }
 
-    async fn handle_event(&mut self, event: BtcP2trEvent) -> Result<(), Error> {
-        let mut tx = self.pool.begin().await?;
-        self.insert_event(&mut tx, event.clone()).await?;
-        self.update_total_balance(&mut tx, event.clone()).await?;
-        self.update_statistic_balance_change(&mut tx, event).await?;
-        tx.commit().await?;
+    async fn handle_reorg(&mut self, block_number: usize) -> Result<(), Error> {
         Ok(())
     }
 
+    async fn handle_event(&mut self, event: BtcP2trEvent) -> Result<(), Error> {
+        let mut tx = self.pool.begin().await?;
+
+        let block_number = event.block_number;
+
+        if event.is_coinbase {
+            self.insert_pending_event(&mut tx, event.clone()).await?;
+        } else {
+            self.insert_event(&mut tx, event.clone()).await?;
+        }
+
+        self.update_total_balance(&mut tx, event.clone()).await?;
+        self.update_statistic_balance_change(&mut tx, event).await?;
+        tx.commit().await?;
+
+        if block_number > self.last_block_number {
+            self.last_block_number = block_number;
+            self.commit_pending_events().await?;
+        }
+
+        Ok(())
+    }
+
+    // for coinbase event
+    async fn insert_pending_event(
+        &mut self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        event: BtcP2trEvent,
+    ) -> Result<(), Error> {
+        log::debug!("Inserted pending event with id: {}", &event.txid);
+
+        db::create_pending_p2tr_event(tx.as_mut(), event).await?;
+        Ok(())
+    }
+
+    // for non-coinbase event
     async fn insert_event(
         &mut self,
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -113,11 +149,39 @@ impl Aggregator {
         Ok(())
     }
 
+    async fn commit_pending_events(&mut self) -> Result<(), Error> {
+        if self.last_block_number < 100 {
+            return Ok(());
+        }
+
+        let events = db::pull_pending_p2tr_events(&self.pool, self.last_block_number - 100).await?;
+
+        if events.is_empty() {
+            return Ok(());
+        }
+
+        let mut tx = self.pool.begin().await?;
+
+        for event in events {
+            log::info!("Committing pending event with id: {}", &event.txid);
+            self.insert_event(&mut tx, event).await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn cleanup(mut self) {
         log::info!("Cleaning up resources...");
         while let Some(event) = self.receiver.recv().await {
             // TODO: handle error
-            let _ = self.handle_event(event).await;
+            match event {
+                AggregatorMsg::Event(event) => {
+                    let _ = self.handle_event(event).await;
+                }
+                AggregatorMsg::Reorg(block_number) => {
+                    let _ = self.handle_reorg(block_number).await;
+                }
+            }
         }
         log::info!("Cleaning up resources... done");
     }

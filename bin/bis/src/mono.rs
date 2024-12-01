@@ -16,7 +16,7 @@ use bis_core::{
             client::{Client, Processor},
             Harvester,
         },
-        types::{BtcP2trEvent, BTC_NETWORK},
+        types::{AggregatorMsg, BtcP2trEvent, BTC_NETWORK},
     },
     sqlx_postgres::connect_and_migrate,
 };
@@ -122,7 +122,7 @@ async fn create_harvester(
     rpc_user: Option<String>,
     rpc_pwd: Option<String>,
     network: Network,
-    event_sender: UnboundedSender<BtcP2trEvent>,
+    event_sender: UnboundedSender<AggregatorMsg>,
 ) -> anyhow::Result<Harvester> {
     log::info!("Connected to bitcoin rpc: {}", &config.provider_url);
 
@@ -152,7 +152,7 @@ async fn create_harvester(
 
 async fn create_aggregator(
     pg_pool: PgPool,
-) -> anyhow::Result<(UnboundedSender<BtcP2trEvent>, Aggregator)> {
+) -> anyhow::Result<(UnboundedSender<AggregatorMsg>, Aggregator)> {
     let (sender, receiver) = mpsc::unbounded_channel();
 
     let shutdown_notify = Arc::new(Notify::new());

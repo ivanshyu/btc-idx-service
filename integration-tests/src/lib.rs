@@ -3,7 +3,7 @@ mod tests {
     use bis_core::bitcoin::aggregator::Aggregator;
     use bis_core::bitcoin::harvester::client::{Client, Processor};
     use bis_core::bitcoin::harvester::Harvester;
-    use bis_core::bitcoin::types::{BtcP2trEvent, BTC_NETWORK};
+    use bis_core::bitcoin::types::{AggregatorMsg, BTC_NETWORK};
     use bis_core::sqlx_postgres::{bitcoin as db, connect_and_migrate, EMBEDDED_MIGRATE};
 
     use std::process::Command;
@@ -63,13 +63,12 @@ mod tests {
             thread::sleep(Duration::from_secs(3)); // wait for the container to be ready
 
             loop {
-                if let Ok(blockchain_info) = run_bitcoin_cli(&["getblockchaininfo"]) {
-                    if !blockchain_info.is_empty() {
-                        break;
-                    }
-                    thread::sleep(Duration::from_secs(3)); // wait for the container to be ready
-                    println!("Blockchain info: {}", blockchain_info);
+                println!("Checking regtest container is ready");
+                if let Ok(block_count) = run_bitcoin_cli(&["getblockcount"]) {
+                    assert_eq!(block_count, "0");
+                    break;
                 }
+                thread::sleep(Duration::from_secs(3)); // wait for the container to be ready
             }
 
             let _ = run_bitcoin_cli(&["createwallet", "test_wallet"]);
@@ -124,7 +123,7 @@ mod tests {
 
     async fn create_harvester(
         pg_pool: PgPool,
-        event_sender: UnboundedSender<BtcP2trEvent>,
+        event_sender: UnboundedSender<AggregatorMsg>,
     ) -> anyhow::Result<Harvester> {
         let client = Client::new(
             "bitcoin client".to_owned(),
@@ -157,7 +156,7 @@ mod tests {
 
     async fn create_aggregator(
         pg_pool: PgPool,
-    ) -> anyhow::Result<(UnboundedSender<BtcP2trEvent>, Aggregator)> {
+    ) -> anyhow::Result<(UnboundedSender<AggregatorMsg>, Aggregator)> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         let shutdown_notify = Arc::new(Notify::new());
@@ -170,7 +169,7 @@ mod tests {
         let _fixture = DockerTestFixture::new("bitcoin-regtest");
 
         // options for logging indexer
-        // init_logger("info,sqlx=info", true);
+        init_logger("info,sqlx=info", true);
 
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
