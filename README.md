@@ -75,7 +75,59 @@ Other Libs:
 - futures: Future lib
 
 ```
+#### Tree Structure
+```
+├── Cargo.lock
+├── Cargo.toml
+├── README.md
+├── REQUIREMENT.md
+├── bin
+│   └── bis
+│       ├── Cargo.toml
+│       └── src
+│           ├── api
+│           │   ├── bitcoin.rs (Bitcoin routes)
+│           │   ├── error.rs (API error)
+│           │   ├── mod.rs (API module)
+│           │   └── models.rs (API models)
+│           ├── cli.rs
+│           ├── config.rs (Config toml parser)
+│           ├── main.rs (Main entry)
+│           ├── mono.rs (Mono subcommand to start the indexer)
+│           └── tools.rs (Tools subcommand)
+├── bis.drawio.png
+├── core (Shared core libs)
+│   ├── Cargo.toml
+│   ├── migrations (Database migrations)
+│   │   ├── 20241119010700_init.sql
+│   │   └── 20241120123711_bitcoin.sql
+│   └── src
+│       ├── bitcoin
+│       │   ├── aggregator.rs (Aggregator)
+│       │   ├── harvester 
+│       │   │   ├── client.rs (Bitcoin RPC client)
+│       │   │   ├── mod.rs (Harvester)
+│       │   │   └── processor.rs (Processor)
+│       │   └── types.rs (Domain types)
+│       ├── lib.rs 
+│       ├── rpc_client.rs (Bitcoin inner RPC client)
+│       └── sqlx_postgres
+│           ├── bitcoin.rs (Bitcoin DB)
+│           └── mod.rs (Postgres common tools)
+├── deployment
+│   ├── Dockerfile
+│   ├── config.toml (Default config, Mainnet)
+│   ├── config_dev.toml (Dev config, Regtest)
+│   ├── config_staging.toml (Staging config, Testnet)
+│   └── docker-compose.yaml (Docker compose file)
+├── integration-tests   
+│   ├── Cargo.toml
+│   └── src
+│       └── lib.rs (Integration tests)
+├── justfile (Build tool, like Makefile)
+└── rust-toolchain.toml
 
+```
 ### Advanced Requirements
 - [✅] Automatically indexing new Bitcoin blocks
 - [✅] Multithreading
