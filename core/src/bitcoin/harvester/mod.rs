@@ -8,7 +8,7 @@ use crate::{
 };
 use crate::{Command, CommandHandler};
 
-use std::{cmp::max, sync::Arc, thread, time::Duration};
+use std::{cmp::max, sync::Arc, time::Duration};
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
 use futures::FutureExt;

@@ -1,7 +1,7 @@
 use super::types::{AggregatorMsg, BtcP2trEvent};
 use crate::sqlx_postgres::bitcoin as db;
 
-use std::{sync::Arc, thread, time::Duration};
+use std::sync::Arc;
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
 use atb_types::{prelude::chrono::Timelike, Utc};
