@@ -74,8 +74,8 @@ impl Client {
 
     pub async fn scan_block_by_hash(&self, hash: &BlockHash) -> Result<BlockInfo, Error> {
         let (header, block) = futures::try_join!(
-            self.inner.get_block_header(&hash),
-            self.inner.get_block(&hash)
+            self.inner.get_block_header(hash),
+            self.inner.get_block(hash)
         )?;
 
         Ok(BlockInfo {

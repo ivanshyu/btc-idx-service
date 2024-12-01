@@ -72,5 +72,5 @@ pure-test:
 	cargo test --package integration-tests --lib -- tests::test_bitcoin_transactions --exact --show-output --nocapture
 
 local-test: 
-    psql -h 127.0.0.1 -p 5432 -U postgres -c "DROP DATABASE IF EXISTS integration_tests_tron"
-    local-pg local-reg pure-test
+    psql -h 127.0.0.1 -p 5432 -U postgres -c "DROP DATABASE IF EXISTS integration_tests"
+    just local-pg local-reg pure-test

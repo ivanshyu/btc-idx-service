@@ -316,4 +316,4 @@ TODO
 
 ## Graceful Shutdown
 Once the indexer is running, you can press `Ctrl+C` or through the CLI `terminate` command to terminate the indexer gracefully, and then the aggregator will be notified and drain all the events in the channel.
-Note: I didn't implement the detail behavior for the aggregator, it is stateless, so once aggregator is killed without processing all the events, the remaining events will be lost.
+- Note: For this project, I didn't implement the recovery behavior for the aggregator because it is stateless(simplify the design), so once aggregator is killed forcefully without processing all the events, the remaining events will be lost without aggregation.

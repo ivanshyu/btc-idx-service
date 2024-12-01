@@ -290,7 +290,7 @@ impl Harvester {
                             .await
                             .map_err(|e| {
                                 log::error!("failed to mine_block_by_hash {e}");
-                                Error::Client(e.into())
+                                Error::Client(e)
                             })?;
                     current_block = parent_block;
                 } else {
@@ -301,11 +301,7 @@ impl Harvester {
 
             // Another fork detected during rollback, restarting
             fork_blocks_reversed.clear();
-            current_block = self
-                .client
-                .scan_block(None)
-                .await
-                .map_err(|e| Error::Client(e.into()))?;
+            current_block = self.client.scan_block(None).await.map_err(Error::Client)?;
 
             log::trace!(
                 "📦 {} Current tip: {}, hash: {}",
