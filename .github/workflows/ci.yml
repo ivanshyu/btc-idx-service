@@ -1,12 +1,12 @@
----
 name: CI
-on:
+'on':
   pull_request: null
   push:
     branches:
       - master
+      - feature/*
 env:
-  GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  GH_TOKEN: '${{ secrets.GH_TOKEN }}'
   RUST_BACKTRACE: 1
   CARGO_NET_GIT_FETCH_WITH_CLI: true
 jobs:
@@ -20,7 +20,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-          components: rustfmt, clippy
+          components: 'rustfmt, clippy'
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
@@ -28,7 +28,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: '${{ runner.os }}-cargo-${{ hashFiles(''**/Cargo.lock'') }}'
       - name: Start services with docker-compose
         run: |
           docker-compose up -d
@@ -38,7 +38,8 @@ jobs:
           git config --global credential.helper store
           echo "https://${GH_TOKEN}:${GH_TOKEN}@github.com" > ~/.git-credentials
       - name: Clippy and Cargo Build
-        run: >-
+        run: |-
           echo $TAG                  
 
-          cargo test --package integration-tests --lib -- tests::test_bitcoin_transactions --exact --show-output --nocapture
+          cargo test --package integration-tests --lib --
+          tests::test_bitcoin_transactions --exact --show-output --nocapture
