@@ -1,7 +1,7 @@
 use super::types::{AggregatorMsg, BtcP2trEvent};
 use crate::sqlx_postgres::bitcoin as db;
 
-use std::sync::Arc;
+use std::{sync::Arc, thread, time::Duration};
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
 use atb_types::{prelude::chrono::Timelike, Utc};
@@ -41,6 +41,7 @@ impl Aggregator {
     }
 
     pub async fn start(mut self) -> Result<(), Error> {
+        let shutdown_notify = self.shutdown_notify.clone();
         loop {
             tokio::select! {
                 biased;
@@ -55,13 +56,15 @@ impl Aggregator {
                     }
                 }
 
-                _ = self.shutdown_notify.notified() => {
+                _ = shutdown_notify.notified() => {
                     log::info!("Shutting down aggregator gracefully.");
+                    self.cleanup().await;
+
                     break;
                 }
             }
         }
-        self.cleanup().await;
+
         Ok(())
     }
 
@@ -190,7 +193,7 @@ impl Aggregator {
         Ok(())
     }
 
-    async fn cleanup(mut self) {
+    async fn cleanup(&mut self) {
         log::info!("Cleaning up resources...");
         while let Some(event) = self.receiver.recv().await {
             // TODO: handle error
@@ -213,21 +216,21 @@ impl Aggregator {
     }
 
     pub async fn run(self, mut shutdown: Shutdown, _shutdown_complete: ShutdownComplete) {
-        tokio::select! {
-            res = self.start() => {
-                match res {
-                    Ok(s) => s,
-                    Err(e)=>{
-                        // probably fatal error occurs
-                        panic!("aggregator stopped: {:?}", e)
-                    }
-                };
-            },
+        let shutdown_notify = self.shutdown_notify.clone();
 
-            _ = shutdown.recv() => {
-                log::warn!("aggregator shutting down from signal");
-            }
+        let shutdown_handler = tokio::spawn(async move {
+            shutdown.recv().await;
+            log::warn!("aggregator shutting down from signal");
+            shutdown_notify.notify_one();
+        });
+
+        let result = self.start().await;
+
+        shutdown_handler.abort();
+
+        match result {
+            Ok(_) => log::info!("aggregator stopped normally"),
+            Err(e) => panic!("aggregator stopped with error: {:?}", e),
         }
-        log::info!("aggregator stopped")
     }
 }
