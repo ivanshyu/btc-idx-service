@@ -183,7 +183,6 @@ impl Harvester {
             log::info!("✅ {} Finished Processing first block", self.name);
         }
 
-        // 處理後續區塊
         while let Some(prev_block) = &self.last_processed_block {
             if prev_block.header.height >= desired_height {
                 break;

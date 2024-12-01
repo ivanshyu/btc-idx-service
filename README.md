@@ -18,6 +18,32 @@
 - Aggregator: Aggregate and store events
 - Web Server: Handle some queries and CLI commands
 
+### Processing Flow
+During normal operation, the system processes new blocks sequentially to maintain the current state of transactions, UTXOs, and balances.
+#### Harvester Side
+When a new block arrives in sequential order:
+1. Block Validation
+- Verifies the block is the next in sequence
+- Confirms it connects to the previously processed block
+2. Block Data Processing
+- Stores the new block raw information
+- Processes all transactions within the block
+- Creates new UTXOs for taproot address from transaction outputs
+- Marks spent UTXOs from transaction inputs if exists
+3. Notification
+- Notifies the Aggregator the events about the new block
+
+#### Aggregator Side
+Upon receiving notification of a new block:
+1. Event Processing
+- Stores events in the database
+2. Balance Update(Event Projection)
+- Updates account balances based on new events
+- Updates account statistics based on new events
+3. Coinbase Transaction Handling
+- Records new coinbase event into pending table
+- Only projects them after cooldown period
+
 #### 3rd party libraries choice
 ```
 Bitcoin Libs:
@@ -312,7 +338,36 @@ database will create `config` table to store and assert the network config to pr
 ```
 
 ## Reorg
-TODO
+### Harvester Side
+When the harvester detects that the latest block differs from the previously processed block:
+1. Chain Traversal
+- Traverses up the block parents until it finds the last matching block
+- This block becomes the reorg point
+2. Data Cleanup
+- Deletes all blocks after the reorg point
+- Removes associated transactions (cascading delete)
+- Removes associated UTXOs (cascading delete)
+- Resets any UTXOs marked as "spent" back to "unspent" state
+3. Notification
+- Notifies the Aggregator to handle the reorg
+### Aggregator Side
+Upon receiving the reorg message:
+1. Event Processing
+- Retrieves all events from the reorganization point
+- Inverts the amount for each event (amount * -1)
+- Inserts these as new reorged events into the database
+2. Balance Recalculation
+- Recalculates and updates all balance-related information
+- Aggregates the new balances based on the inverted events
+3. Coinbase Cleanup
+- Removes any pending coinbase transactions that were waiting for the 100-block cooldown period
+- This ensures invalid coinbase transactions are not processed
+
+This process ensures that the system maintains accurate state even when the blockchain undergoes reorganization.
+
+### Aggregator Side
+When the aggregator detects that the latest block differs from the previously processed block:
+1. The aggregator will process the forked blocks from the common ancestor block to the latest block.
 
 ## Graceful Shutdown
 Once the indexer is running, you can press `Ctrl+C` or through the CLI `terminate` command to terminate the indexer gracefully, and then the aggregator will be notified and drain all the events in the channel.
