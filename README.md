@@ -87,33 +87,33 @@ Other Libs:
 │       └── src
 │           ├── api
 │           │   ├── bitcoin.rs (Bitcoin routes)
-│           │   ├── error.rs (API error)
-│           │   ├── mod.rs (API module)
-│           │   └── models.rs (API models)
+│           │   ├── error.rs 
+│           │   ├── mod.rs
+│           │   └── models.rs 
 │           ├── cli.rs
-│           ├── config.rs (Config toml parser)
+│           ├── config.rs
 │           ├── main.rs (Main entry)
 │           ├── mono.rs (Mono subcommand to start the indexer)
 │           └── tools.rs (Tools subcommand)
 ├── bis.drawio.png
 ├── core (Shared core libs)
 │   ├── Cargo.toml
-│   ├── migrations (Database migrations)
+│   ├── migrations 
 │   │   ├── 20241119010700_init.sql
 │   │   └── 20241120123711_bitcoin.sql
 │   └── src
 │       ├── bitcoin
-│       │   ├── aggregator.rs (Aggregator)
+│       │   ├── aggregator.rs 
 │       │   ├── harvester 
 │       │   │   ├── client.rs (Bitcoin RPC client)
-│       │   │   ├── mod.rs (Harvester)
-│       │   │   └── processor.rs (Processor)
+│       │   │   ├── mod.rs 
+│       │   │   └── processor.rs 
 │       │   └── types.rs (Domain types)
 │       ├── lib.rs 
 │       ├── rpc_client.rs (Bitcoin inner RPC client)
 │       └── sqlx_postgres
-│           ├── bitcoin.rs (Bitcoin DB)
-│           └── mod.rs (Postgres common tools)
+│           ├── bitcoin.rs 
+│           └── mod.rs 
 ├── deployment
 │   ├── Dockerfile
 │   ├── config.toml (Default config, Mainnet)
@@ -123,7 +123,7 @@ Other Libs:
 ├── integration-tests   
 │   ├── Cargo.toml
 │   └── src
-│       └── lib.rs (Integration tests)
+│       └── lib.rs
 ├── justfile (Build tool, like Makefile)
 └── rust-toolchain.toml
 
