@@ -7,6 +7,7 @@ version = "0.1.0"
 edition = "2021"
 repository = "https://github.com/ivanshyu/btc-idx-service.git"
 description = "bitcoin index service"
+rust-version = "1.82.0"
 
 [workspace.dependencies]
 anyhow = "1"
