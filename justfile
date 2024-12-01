@@ -25,20 +25,20 @@ build-debug:
 ###########################################################
 ### Docker
 
-# docker platform='linux/amd64':
-#     # docker buildx --platform linux/amd64,linux/arm64 
-#     docker buildx build --progress plain --platform {{platform}} \
-#     --secret id=gitconfig,src=${HOME}/.gitconfig \
-#     --secret id=git-credentials,src=${HOME}/.git-credentials \
-#     -t gcr.io/alpha-carbon/swap:v{{SEM_VER}} \
-#     -t gcr.io/alpha-carbon/swap:latest \
-#     -f docker/Dockerfile .
+docker platform='linux/amd64':
+    # docker buildx --platform linux/amd64,linux/arm64 
+    docker buildx build --progress plain --platform {{platform}} \
+    --secret id=gitconfig,src=${HOME}/.gitconfig \
+    --secret id=git-credentials,src=${HOME}/.git-credentials \
+    -t gcr.io/ivanshyu/bis:v{{SEM_VER}} \
+    -t gcr.io/ivanshyu/bis:latest \
+    -f docker/Dockerfile .
 
-# docker-push:
-#     docker push gcr.io/alpha-carbon/swap -a
-#     docker image prune -f
+docker-push:
+    docker push gcr.io/ivanshyu/bis -a
+    docker image prune -f
 
-# docker-release: docker docker-push
+docker-release: docker docker-push
  
 ###########################################################
 ###########################################################
@@ -71,4 +71,6 @@ local-down:
 pure-test:
 	cargo test --package integration-tests --lib -- tests::test_bitcoin_transactions --exact --show-output --nocapture
 
-local-test: local-pg local-reg pure-test
+local-test: 
+    psql -h 127.0.0.1 -p 5432 -U postgres -c "DROP DATABASE IF EXISTS integration_tests_tron"
+    local-pg local-reg pure-test
