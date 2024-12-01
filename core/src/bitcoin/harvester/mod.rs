@@ -8,7 +8,7 @@ use crate::{
 };
 use crate::{Command, CommandHandler};
 
-use std::{cmp::max, sync::Arc, time::Duration};
+use std::{cmp::max, sync::Arc, thread, time::Duration};
 
 use atb_tokio_ext::{Shutdown, ShutdownComplete};
 use futures::FutureExt;
@@ -112,6 +112,7 @@ impl Harvester {
                 }
 
                 res = async {
+                    log::info!("{} sleeping for {}ms", self.name, self.sleep_ms);
                     sleep(Duration::from_millis(self.sleep_ms)).await;
                     self.harvest().await
                 } => {
@@ -248,12 +249,12 @@ impl Harvester {
             fork_origin,
             head_block_number
         );
-        // let events = self
-        //     .block_processor
-        //     .process_fork(fork_blocks_reversed)
-        //     .await
-        //     .map_err(|e| Error::Other(e.into()))?;
-        let events = vec![];
+
+        let events = self
+            .block_processor
+            .process_fork(fork_blocks_reversed)
+            .await
+            .map_err(|e| Error::Other(e.into()))?;
 
         log::info!("💫 {} Reorg complete", self.name);
         Ok(events)
@@ -263,28 +264,28 @@ impl Harvester {
         let mut fork_blocks_reversed = Vec::new();
         let mut current_block = block;
 
-        'found_origin: loop {
-            loop {
-                // Found common ancestor
-                if current_block.header.height == 0
-                    || self
-                        .block_processor
-                        .is_processed(&current_block.header.hash)
-                        .await
-                        .map_err(|e| Error::Other(e.into()))?
-                {
-                    log::trace!(
-                        "🌟 {} Found common ancestor at block {}",
-                        self.name,
-                        current_block.header.height
-                    );
-                    break 'found_origin;
-                }
+        loop {
+            // Found common ancestor
+            if current_block.header.height == 0
+                || self
+                    .block_processor
+                    .is_processed(&current_block.header.hash)
+                    .await
+                    .map_err(|e| Error::Other(e.into()))?
+            {
+                log::trace!(
+                    "🌟 {} Found common ancestor at block {}",
+                    self.name,
+                    current_block.header.height
+                );
+                break;
+            }
 
-                fork_blocks_reversed.push(current_block.clone());
+            fork_blocks_reversed.push(current_block.clone());
 
-                if let Some(parent_hash) = &current_block.header.previous_block_hash {
-                    let parent_block =
+            match &current_block.header.previous_block_hash {
+                Some(parent_hash) => {
+                    current_block =
                         self.client
                             .scan_block_by_hash(parent_hash)
                             .await
@@ -292,16 +293,9 @@ impl Harvester {
                                 log::error!("failed to mine_block_by_hash {e}");
                                 Error::Client(e)
                             })?;
-                    current_block = parent_block;
-                } else {
-                    // unreacheable
-                    break;
                 }
+                None => break, // unreachable
             }
-
-            // Another fork detected during rollback, restarting
-            fork_blocks_reversed.clear();
-            current_block = self.client.scan_block(None).await.map_err(Error::Client)?;
 
             log::trace!(
                 "📦 {} Current tip: {}, hash: {}",
@@ -331,23 +325,22 @@ impl Harvester {
 
     pub async fn run(self, mut shutdown: Shutdown, _shutdown_complete: ShutdownComplete) {
         let name = self.name.clone();
+        let name_cloned = self.name.clone();
         let handle = self.handle();
-        tokio::select! {
-            res = self.start() => {
-                match res {
-                    Ok(s) => s,
-                    Err(e)=>{
-                        // probably fatal error occurs
-                        panic!("{} processor stopped: {:?}", name, e)
-                    }
-                };
-            },
 
-            _ = shutdown.recv() => {
-                log::warn!("{} shutting down from signal", name);
-                let _ = handle.terminate().await;
-            }
+        let shutdown_handler = tokio::spawn(async move {
+            shutdown.recv().await;
+            log::warn!("{} shutting down from signal", &name_cloned);
+            let _ = handle.terminate().await;
+        });
+
+        let result = self.start().await;
+
+        shutdown_handler.abort();
+
+        match result {
+            Ok(_) => log::info!("{} stopped normally", &name),
+            Err(e) => panic!("{} stopped with error: {:?}", name, e),
         }
-        log::info!("{} stopped", name)
     }
 }
