@@ -489,7 +489,7 @@ where
     sqlx::query(
         r#"
         DELETE FROM pending_btc_p2tr_events
-        WHERE block_number < $1
+        WHERE block_number <= $1
         RETURNING block_number, tx_hash, address, amount, action, is_coinbase
         "#,
     )

@@ -1550,6 +1550,7 @@ dependencies = [
  "bis-core",
  "bitcoin",
  "futures",
+ "serde_json",
  "sqlx",
  "tokio",
 ]

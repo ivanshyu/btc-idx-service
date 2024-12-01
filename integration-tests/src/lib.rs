@@ -49,7 +49,7 @@ mod tests {
     }
 
     struct DockerTestFixture {
-        container_name: String,
+        _container_name: String,
     }
 
     impl DockerTestFixture {
@@ -77,7 +77,7 @@ mod tests {
             let _ = run_bitcoin_cli(&["settxfee", "0.0001"]);
 
             Self {
-                container_name: container_name.to_string(),
+                _container_name: container_name.to_string(),
             }
         }
     }
@@ -168,8 +168,8 @@ mod tests {
     fn test_bitcoin_transactions() {
         let _fixture = DockerTestFixture::new("bitcoin-regtest");
 
-        // options for logging indexer
-        init_logger("info,sqlx=info", true);
+        // options for logging indexer for debugging
+        // init_logger("info,sqlx=info", true);
 
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -229,9 +229,9 @@ mod tests {
         let _ = run_bitcoin_cli(&["generatetoaddress", "1", &addr1]);
 
         // get the final balances
-        let balance1 = run_bitcoin_cli(&["getreceivedbyaddress", &addr1, "0"]).unwrap();
-        let balance2 = run_bitcoin_cli(&["getreceivedbyaddress", &addr2, "0"]).unwrap();
-        let balance3 = run_bitcoin_cli(&["getreceivedbyaddress", &addr3, "0"]).unwrap();
+        let balance1 = get_onchain_balance(&addr1).unwrap();
+        let balance2 = get_onchain_balance(&addr2).unwrap();
+        let balance3 = get_onchain_balance(&addr3).unwrap();
 
         let end = run_bitcoin_cli(&["getblockcount"])
             .unwrap()
@@ -254,7 +254,6 @@ mod tests {
                 thread::sleep(Duration::from_secs(1));
             }
             println!("Final balances:");
-            // 150
             println!("ADDR1: {}", balance1);
 
             let db_balance1 = db::get_btc_balance(&handler.storage.conn, &addr1)
@@ -262,35 +261,42 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .amount;
-            assert_eq!(BigDecimal::from_str(&balance1).unwrap(), db_balance1);
+            assert_eq!(balance1, db_balance1);
 
-            // 1
             println!("ADDR2: {}", balance2);
             let db_balance2 = db::get_btc_balance(&handler.storage.conn, &addr2)
                 .await
                 .unwrap()
                 .unwrap()
                 .amount;
-            assert_eq!(BigDecimal::from_str(&balance2).unwrap(), db_balance2);
+            assert_eq!(balance2, db_balance2);
 
-            // 0.5
             println!("ADDR3: {}", balance3);
             let db_balance3 = db::get_btc_balance(&handler.storage.conn, &addr3)
                 .await
                 .unwrap()
                 .unwrap()
                 .amount;
-            assert_eq!(BigDecimal::from_str(&balance3).unwrap(), db_balance3);
+            assert_eq!(balance3, db_balance3);
 
             handler.terminate().await.unwrap();
         });
     }
 
-    #[test]
-    fn test_bitcoin_cli_connection() {
-        let blockchain_info = run_bitcoin_cli(&["getblockchaininfo"]).unwrap();
+    fn get_onchain_balance(address: &str) -> anyhow::Result<BigDecimal> {
+        let balance: BigDecimal =
+            run_bitcoin_cli(&["listunspent", "0", "9999999", &format!("[\"{address}\"]")])
+                .map(|s| {
+                    let json = serde_json::Value::from_str(&s).unwrap();
+                    json.as_array().unwrap().clone()
+                })?
+                .into_iter()
+                .map(|utxo| {
+                    let amount = utxo.get("amount").unwrap();
+                    BigDecimal::from_str(amount.to_string().as_str()).unwrap()
+                })
+                .sum();
 
-        println!("Blockchain info: {}", blockchain_info);
-        assert!(!blockchain_info.is_empty());
+        Ok(balance * BigDecimal::from(100_000_000))
     }
 }

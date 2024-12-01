@@ -78,10 +78,9 @@ impl Aggregator {
             self.insert_pending_event(&mut tx, event.clone()).await?;
         } else {
             self.insert_event(&mut tx, event.clone()).await?;
+            self.update_total_balance(&mut tx, event.clone()).await?;
+            self.update_statistic_balance_change(&mut tx, event).await?;
         }
-
-        self.update_total_balance(&mut tx, event.clone()).await?;
-        self.update_statistic_balance_change(&mut tx, event).await?;
         tx.commit().await?;
 
         if block_number > self.last_block_number {
@@ -164,7 +163,9 @@ impl Aggregator {
 
         for event in events {
             log::info!("Committing pending event with id: {}", &event.txid);
-            self.insert_event(&mut tx, event).await?;
+            self.insert_event(&mut tx, event.clone()).await?;
+            self.update_total_balance(&mut tx, event.clone()).await?;
+            self.update_statistic_balance_change(&mut tx, event).await?;
         }
         tx.commit().await?;
         Ok(())
