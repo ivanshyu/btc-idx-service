@@ -1,4 +1,4 @@
-# [Senior Back-end Developer] Bitcoin Indexing Service
+# Bitcoin Indexing Service
 
 - Bitcoin uses UTXO model instead of account-based model. The current Implemented Bitcoin Node does not have such account keeping approach.
 - Design and implement a indexing service that stores raw, processed and aggregated data of Bitcoin transactions.

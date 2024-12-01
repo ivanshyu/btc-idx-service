@@ -105,17 +105,17 @@ just docker-push
 just local-pg
 ```
 
-#### Start Bitcoin with QuickNode
+#### (Choose 1 from 3) Start Bitcoin with QuickNode
 ```
 No need to run any container, just use the default config
 ```
 
-#### Start Bitcoin Testnet
+#### (Choose 1 from 3) Start Bitcoin Testnet
 ```bash
 just local-testnet
 ```
 
-#### Start Bitcoin Regtest
+#### (Choose 1 from 3) Start Bitcoin Regtest
 ```bash
 just local-reg
 ```
@@ -201,7 +201,15 @@ database will create `config` table to store and assert the network config to pr
 - **Response**
 ```json
 {
-    "block_header_data": block_header_data
+    "block_header_data": {
+        "hash": "00000000000000000002026cd93d61cd31c4c3965a4360ea3acc12f1b3ed2f91",
+        "number": 872363,
+        "previous_hash": "0000000000000000000251679b57cbde51df3157a321d5b4ef89c733618e33e4",
+        "timestamp": "2024-11-28T17:40:46Z",
+        "nonce": 3899292546,
+        "version": 580239360,
+        "difficulty": "102289407543323.79687500"
+    }
 }
 ```
 
@@ -212,7 +220,13 @@ database will create `config` table to store and assert the network config to pr
 - **Response**
 ```json
 {
-    "transaction_data": transaction_data
+    "transaction_data": {
+        "txid": "659dbccbc615b43c413d44ed74ecfb8b5b1ac85af41c9020a327b63d78f9b0de",
+        "block_hash": "00000000000000000002026cd93d61cd31c4c3965a4360ea3acc12f1b3ed2f91",
+        "transaction_index": 4,
+        "lock_time": 0,
+        "version": 1
+    }
 }
 ```
 
@@ -227,7 +241,7 @@ database will create `config` table to store and assert the network config to pr
 - **Response** (balance in satoshi)
 ```json
 {
-    "curent_balance": current_balance
+    "curent_balance": "5587366495"
 }
 ```
 
@@ -241,12 +255,17 @@ database will create `config` table to store and assert the network config to pr
 ```json
 [
     {
-        "transaction_id": transaction_id,
-        "transaction_index": transaction_index,
-        "satoshi": satoshi,
-        "block_height": block_height
+        "transaction_id": "07fb318537b62c16d20b0818a1693a509a10bcd7e318bd8add7393892b6d0979",
+        "transaction_index": 0,
+        "satoshi": "100000000",
+        "block_height": 872428
     },
-    ...
+    {
+        "transaction_id": "312557e0855cc84b4424b6e073b6d93af404fd22495edc925d7df45df4ffbe5e",
+        "transaction_index": 0,
+        "satoshi": "5487366495",
+        "block_height": 872429
+    }
 ]
 ```
 
@@ -267,13 +286,28 @@ database will create `config` table to store and assert the network config to pr
 - **Response** (Example: 1 Week span with Daily granularity)
 ```json
 {
-    "1731772800": [{ "balance": "snapshooted_balance" }], // 2024.11.17
-    "1731686400": [{ "balance": "snapshooted_balance" }], // 2024.11.16
-    "1731600000": [{ "balance": "snapshooted_balance" }], // 2024.11.15
-    "1731513600": [{ "balance": "snapshooted_balance" }], // 2024.11.14
-    "1731427200": [{ "balance": "snapshooted_balance" }], // 2024.11.13
-    "1731340800": [{ "balance": "snapshooted_balance" }], // 2024.11.12
-    "1731254400": [{ "balance": "snapshooted_balance" }]  // 2024.11.11
+    "1732341600": [
+        {
+            "balance": "0"
+        }
+    ],
+    "1732345200": [
+        {
+            "balance": "0"
+        }
+    ],
+    ...
+    ,
+    "1732942800": [
+        {
+            "balance": "5587366495"
+        }
+    ],
+    "1732946400": [
+        {
+            "balance": "5587366495"
+        }
+    ]
 }
 ```
 
