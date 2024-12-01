@@ -10,6 +10,14 @@
 
 ### Feature Requirements
 #### Architecture
+![Logo](./bis.drawio.png)
+- Harvester: Main component of the indexer, including the logic to query and process Bitcoin blocks
+- Processor: A component from harvester that processes transactions in a block
+- RPC Client: A component from harvester that interacts with Bitcoin Node
+- Command Handler: A component from harvester that handles the commands from inside and outside
+- Aggregator: Aggregate and store events
+- Web Server: Handle some queries and CLI commands
+
 #### 3rd party libraries choice
 ```
 Bitcoin Libs:
@@ -50,23 +58,45 @@ Other Libs:
 - [✅] Docker Compose
 - [❌] Kubernetes
 - [❌] Deploy on cloud computing platforms (AWS, Azure, GCP, ...)
-- [❌] CI 
+- [✅] CI 
 - [❌] CD
 
 ### Overall Requirements
 - [✅] Testing
 - [✅] Containerize
 #### Testing
-- [❌] Unit Test
-- [✅] Integration Test
-Integration Test
+Testcase on regtest: 
+1. Alice mines 101 blocks
+2. Alice send 1 BTC to Bob
+3. Alice mines 1 blocks(confrim tx)
+4. Alice send 0.5 BTC to Carol
+5. Alice mines 1 blocks(confrim tx)
 
 ```bash
 just local-test
 ```
+Result:
+```
+    address   |   balance   |  last_updated          
+------------------------------------------------------------------+-------------+-------------------------------
+ bcrt1pk64h4crjqvzwrxttm0j3v73jt6p2s5jlaa9cwddkpvr6puv0qh7qpa4e8v |  4899998450 | 2024-12-01 08:41:26.585399+00
+ bcrt1puewuky4wtnnswy3eff34fqlapa54p9dtvg5vvyacpgqgq8anlfsqf20wls | 10000000000 | 2024-12-01 08:41:27.60536+00
+ bcrt1p6tk2m9uqs9g8asf8l8d28wp4v8mn5e5k99ncddee52wte2htr6vsrz20up |    50000000 | 2024-12-01 08:41:27.616718+00
+ bcrt1py8ttwft6zytdpu9t986egqwnvnmks6qrlj067m9dkrgmef356rcque4mp3 |           0 | 2024-12-01 08:41:27.627634+00
+ bcrt1p94eejr3xqc9f3dns0xrmkp0vc7835vhsx8q0atfgcktflp9g880qf3gllz |    49998450 | 2024-12-01 08:41:27.63792+00
+```
+Note: addresses are generated randomly, so that column may be different, and the coinbase transaction won't be calculated within 100 blocks.
 
-Note: If you already have the test database `integration_tests`, you need to drop it before running the test again.
+#### Containerize
+Build docker image
+```bash
+just docker
+```
 
+Push docker image to Google Container Registry
+```bash
+just docker-push
+```
 
 ## Run
 ### Build in local with docker
