@@ -26,46 +26,54 @@ services:
       - local
 
   btc-testnet:
-      image: kylemanna/bitcoind
-      container_name: bitcoin-testnet
-      restart: always      
-      volumes:
-        - ~/bitcoin-data/testnet:/bitcoin/.bitcoin
-      ports:
-        - "18332:18332"
-        - "18333:18333"
-      environment:
-        BITCOIN_DATA: /efs/bitcoin-data
-      command:
-        -testnet=1
-        -rpcallowip=0.0.0.0/0
-        -rpcbind=0.0.0.0
-        -rpcuser=user
-        -rpcpassword=password
-        -server=1
-        -wallet=wallet.dat
-        -disablewallet=0
-  
+    image: kylemanna/bitcoind
+    container_name: bitcoin-testnet
+    restart: always
+    volumes:
+      - ~/bitcoin-data/testnet:/bitcoin/.bitcoin
+    ports:
+      - "18332:18332"
+      - "18333:18333"
+    environment:
+      BITCOIN_DATA: /efs/bitcoin-data
+    command: -testnet=1 -rpcallowip=0.0.0.0/0 -rpcbind=0.0.0.0 -rpcuser=user -rpcpassword=password -server=1 -wallet=wallet.dat -disablewallet=0
+
   btc-regtest:
-      image: kylemanna/bitcoind
-      container_name: bitcoin-regtest
-      restart: always      
-      volumes:
-        - ~/bitcoin-data/regtest:/bitcoin/.bitcoin
-      ports:
-        - "18443:18443"
-        - "18444:18444"
-      environment:
-        BITCOIN_DATA: /efs/bitcoin-data
-      command:
-        -regtest=1
-        -rpcallowip=0.0.0.0/0
-        -rpcbind=0.0.0.0
-        -rpcuser=${BTCUSER}
-        -rpcpassword=${BTCUSERPASSWORD}
-        -server=1
-        -wallet=wallet.dat
-        -disablewallet=0
+    image: kylemanna/bitcoind
+    container_name: bitcoin-regtest
+    networks:
+      - local
+    restart: always
+    volumes:
+      - ~/bitcoin-data/regtest:/bitcoin/.bitcoin
+    ports:
+      - "18443:18443"
+      - "18444:18444"
+    environment:
+      BITCOIN_DATA: /efs/bitcoin-data
+    command: -regtest=1 -rpcallowip=0.0.0.0/0 -rpcbind=0.0.0.0 -rpcuser=${BTCUSER} -rpcpassword=${BTCUSERPASSWORD} -server=1 -wallet=wallet.dat -disablewallet=0
+  bis:
+    image: gcr.io/ivanshyu/bis:latest
+    container_name: bis
+    restart: on-failure
+    environment:
+      RUST_LOG: 'info,sqlx=warn'
+      PGPORT: ${PGPORT}
+      PGPASSWORD: ${PGPASSWORD}
+      BIS_POSTGRES: ${BIS_POSTGRES}
+      BTCUSER: ${BTCUSER}
+      BTCUSERPASSWORD: ${BTCUSERPASSWORD}
+    command: 'mono'
+    ports:
+      - 3030:3030
+    volumes:
+      - ./config_docker.toml:/app/deployment/config.toml
+    networks:
+      - local
+    depends_on:
+      - postgres
+      - adminer
+      - btc-regtest
 volumes:
   bitcoin_data:
     driver: local

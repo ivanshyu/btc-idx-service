@@ -51,6 +51,9 @@ local-pull:
 local-mono:
     RUST_BACKTRACE=1 RUST_LOG=info,sqlx=warn,reqwest=debug cargo run --bin bis mono
 
+local-bis-docker:
+    docker compose -f ./deployment/docker-compose.yaml up -d bis
+
 local-pg:
 	docker compose -f ./deployment/docker-compose.yaml up -d postgres adminer 
 
