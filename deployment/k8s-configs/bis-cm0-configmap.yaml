@@ -1,0 +1,16 @@
+apiVersion: v1
+data:
+  config_docker.toml: |
+    magic = "regtest"
+    provider_url = 'http://btc-regtest:18443'
+    poll_frequency_ms = 10000
+    # `start_block` is optional.  If omitted, the newest block queried from the chain will
+    # be the `start_block` value
+    # start_block = 0
+kind: ConfigMap
+metadata:
+  annotations:
+    use-subpath: "true"
+  labels:
+    io.kompose.service: bis
+  name: bis-cm0

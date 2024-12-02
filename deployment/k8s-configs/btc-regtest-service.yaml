@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.34.0 (HEAD)
+  labels:
+    io.kompose.service: btc-regtest
+  name: btc-regtest
+spec:
+  ports:
+    - name: "18443"
+      port: 18443
+      targetPort: 18443
+    - name: "18444"
+      port: 18444
+      targetPort: 18444
+  selector:
+    io.kompose.service: btc-regtest
