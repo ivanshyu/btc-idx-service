@@ -163,6 +163,7 @@ Result:
  bcrt1py8ttwft6zytdpu9t986egqwnvnmks6qrlj067m9dkrgmef356rcque4mp3 |           0 | 2024-12-01 08:41:27.627634+00
  bcrt1p94eejr3xqc9f3dns0xrmkp0vc7835vhsx8q0atfgcktflp9g880qf3gllz |    49998450 | 2024-12-01 08:41:27.63792+00
 ```
+Note: Each result be compared with the sum of `listunspent` command in Bitcoin Core during test.<br>
 Note: addresses are generated randomly, so that column may be different, and the coinbase transaction won't be calculated within 100 blocks.
 
 #### Containerize
@@ -174,6 +175,11 @@ just docker
 Push docker image to Google Container Registry
 ```bash
 just docker-push
+```
+
+Pull docker image from Google Container Registry
+```bash
+docker pull gcr.io/ivanshyu/bis:latest
 ```
 
 ## Run
@@ -416,10 +422,6 @@ Upon receiving the reorg message:
 - This ensures invalid coinbase transactions are not processed
 
 This process ensures that the system maintains accurate state even when the blockchain undergoes reorganization.
-
-### Aggregator Side
-When the aggregator detects that the latest block differs from the previously processed block:
-1. The aggregator will process the forked blocks from the common ancestor block to the latest block.
 
 ## Graceful Shutdown
 Once the indexer is running, you can press `Ctrl+C` or through the CLI `terminate` command to terminate the indexer gracefully, and then the aggregator will be notified and drain all the events in the channel.
