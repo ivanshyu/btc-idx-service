@@ -32,7 +32,7 @@ docker platform='linux/amd64':
     --secret id=git-credentials,src=${HOME}/.git-credentials \
     -t gcr.io/ivanshyu/bis:v{{SEM_VER}} \
     -t gcr.io/ivanshyu/bis:latest \
-    -f docker/Dockerfile .
+    -f ./deployment/Dockerfile .
 
 docker-push:
     docker push gcr.io/ivanshyu/bis -a
