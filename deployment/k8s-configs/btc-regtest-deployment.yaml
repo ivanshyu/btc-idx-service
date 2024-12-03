@@ -22,20 +22,17 @@ spec:
       labels:
         io.kompose.service: btc-regtest
     spec:
+      initContainers:
+        - name: init-copy-config
+          image: busybox
+          command: ['sh', '-c', 'cp /config/bitcoin.conf /bitcoin/.bitcoin/']
+          volumeMounts:
+            - name: btc-regtest-config
+              mountPath: /config
+            - name: bitcoin-data
+              mountPath: /bitcoin/.bitcoin
       containers:
-        - args:
-            - -regtest=1
-            - -rpcallowip=0.0.0.0/0
-            - -rpcbind=0.0.0.0
-            - -rpcuser=
-            - -rpcpassword=
-            - -server=1
-            - -wallet=wallet.dat
-            - -disablewallet=0
-          env:
-            - name: BITCOIN_DATA
-              value: /efs/bitcoin-data
-          image: kylemanna/bitcoind
+        - image: kylemanna/bitcoind
           name: bitcoin-regtest
           ports:
             - containerPort: 18443
@@ -43,10 +40,11 @@ spec:
             - containerPort: 18444
               protocol: TCP
           volumeMounts:
-            - mountPath: /bitcoin/.bitcoin
-              name: btc-regtest-cm0
-      restartPolicy: Always
+            - name: bitcoin-data
+              mountPath: /bitcoin/.bitcoin
       volumes:
-        - configMap:
+        - name: btc-regtest-config
+          configMap:
             name: btc-regtest-cm0
-          name: btc-regtest-cm0
+        - name: bitcoin-data
+          emptyDir: {}

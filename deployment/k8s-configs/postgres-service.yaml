@@ -12,8 +12,5 @@ spec:
     - name: "5432"
       port: 5432
       targetPort: 5432
-    - name: "0"
-      port: 0
-      targetPort: 0
   selector:
     io.kompose.service: postgres

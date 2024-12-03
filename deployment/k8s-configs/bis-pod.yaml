@@ -12,11 +12,18 @@ spec:
     - args:
         - mono
       env:
+        - name: DATABASE_URL
+          value: "postgresql://postgres:FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g@postgres:5432/btc_indexer?sslmode=disable"
         - name: BIS_POSTGRES
+          value: "postgresql://postgres:FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g@postgres:5432/btc_indexer?sslmode=disable"
         - name: BTCUSER
+          value: bitcoinrpc
         - name: BTCUSERPASSWORD
+          value: FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g
         - name: PGPASSWORD
+          value: FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g
         - name: PGPORT
+          value: "5432"
         - name: RUST_LOG
           value: info,sqlx=warn
       image: gcr.io/ivanshyu/bis:latest
@@ -32,7 +39,7 @@ spec:
   volumes:
     - configMap:
         items:
-          - key: config_docker.toml
+          - key: config.toml
             path: config.toml
         name: bis-cm0
       name: bis-cm0

@@ -23,11 +23,10 @@ spec:
       containers:
         - env:
             - name: POSTGRES_PASSWORD
+              value: FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g
           image: postgres:13
           name: postgres
           ports:
             - containerPort: 5432
-              protocol: TCP
-            - containerPort: 0
               protocol: TCP
       restartPolicy: Always
