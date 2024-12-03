@@ -132,7 +132,7 @@ Other Libs:
 - [✅] Automatically indexing new Bitcoin blocks
 - [✅] Multithreading
 - [✅] Set up configuration options using configuration file
-- [❌] View logs on visualization dashboard (Kibana, Grafana, ...)
+- [✅] View logs on visualization dashboard (Kibana, Grafana, ...)
 - [✅] Docker Compose
 - [✅] Kubernetes
 - [✅] Deploy on cloud computing platforms (AWS, Azure, GCP, ...)
