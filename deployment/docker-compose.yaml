@@ -74,6 +74,34 @@ services:
       - postgres
       - adminer
       - btc-regtest
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - local
+    restart: always
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - local
+    restart: always
 volumes:
   bitcoin_data:
+    driver: local
+  grafana_data:
+    driver: local
+  prometheus_data:
     driver: local

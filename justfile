@@ -77,3 +77,7 @@ pure-test:
 local-test: 
     psql -h 127.0.0.1 -p 5432 -U postgres -c "DROP DATABASE IF EXISTS integration_tests"
     just local-pg local-reg pure-test
+
+local-grafana:
+    docker compose -f ./deployment/docker-compose.yaml up -d prometheus
+    docker compose -f ./deployment/docker-compose.yaml up -d grafana
