@@ -134,8 +134,8 @@ Other Libs:
 - [✅] Set up configuration options using configuration file
 - [❌] View logs on visualization dashboard (Kibana, Grafana, ...)
 - [✅] Docker Compose
-- [❌] Kubernetes
-- [❌] Deploy on cloud computing platforms (AWS, Azure, GCP, ...)
+- [✅] Kubernetes
+- [✅] Deploy on cloud computing platforms (AWS, Azure, GCP, ...)
 - [✅] CI 
 - [❌] CD
 
