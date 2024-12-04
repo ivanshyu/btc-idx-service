@@ -29,10 +29,12 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-              key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - name: Start services with docker-compose
         run: |
-          docker-compose up -d
+          just local-pg local-reg
           sleep 10
       - name: Export Github Credentials
         run: |-
@@ -41,6 +43,4 @@ jobs:
       - name: Clippy and Cargo Build
         run: |-
           echo $TAG                  
-
-          cargo test --package integration-tests --lib --
-          tests::test_bitcoin_transactions --exact --show-output --nocapture
+          just local-test
