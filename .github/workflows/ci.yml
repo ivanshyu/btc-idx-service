@@ -3,7 +3,7 @@ name: CI
   pull_request: null
   push:
     branches:
-      - master
+      - main
       - feature/*
   workflow_dispatch:
 env:
@@ -12,7 +12,7 @@ env:
   CARGO_NET_GIT_FETCH_WITH_CLI: true
 jobs:
   mono:
-    runs-on: ubuntu-21
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust
