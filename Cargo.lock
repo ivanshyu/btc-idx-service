@@ -446,7 +446,7 @@ dependencies = [
 
 [[package]]
 name = "bis"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "bis-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "atb",
@@ -1542,7 +1542,7 @@ dependencies = [
 
 [[package]]
 name = "integration-tests"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "atb",
