@@ -69,12 +69,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+          project_id: 'ivanshyu'
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
         with:
           version: 'latest'
-          service_account_key: ${{ secrets.GCP_CREDENTIALS }}
-          project_id: ivanshyu
+          project_id: 'ivanshyu'
 
       - name: Configure Docker
         run: gcloud auth configure-docker gcr.io
@@ -92,12 +98,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+          project_id: 'ivanshyu'
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
         with:
           version: 'latest'
-          service_account_key: ${{ secrets.GCP_CREDENTIALS }}
-          project_id: ivanshyu
+          project_id: 'ivanshyu'
 
       - name: Configure kubectl
         run: gcloud container clusters get-credentials personal-cluster --zone asia-east1-a --project ivanshyu
