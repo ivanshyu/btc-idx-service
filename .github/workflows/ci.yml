@@ -1,12 +1,13 @@
 name: CI
-'on':
+"on":
   pull_request: null
   push:
     branches:
       - master
       - feature/*
+  workflow_dispatch:
 env:
-  GH_TOKEN: '${{ secrets.GH_TOKEN }}'
+  GH_TOKEN: "${{ secrets.GH_TOKEN }}"
   RUST_BACKTRACE: 1
   CARGO_NET_GIT_FETCH_WITH_CLI: true
 jobs:
@@ -20,7 +21,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-          components: 'rustfmt, clippy'
+          components: "rustfmt, clippy"
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
