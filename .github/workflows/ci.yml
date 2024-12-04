@@ -1,11 +1,25 @@
 name: CI/CD
 "on":
-  pull_request: null
-  push:
-    branches:
-      - main
-      - feature/*
+  # pull_request: null
+  # push:
+  #   branches:
+  #     - main
+  #     - feature/*
   workflow_dispatch:
+    inputs:
+      run_ci:
+        description: 'Run ci job'
+        required: false
+        default: 'true'
+      run_build:
+        description: 'Run build job'
+        required: false
+        default: 'true'
+      run_deploy:
+        description: 'Run deploy job'
+        required: false
+        default: 'true'
+      
 env:
   GH_TOKEN: "${{ secrets.GH_TOKEN }}"
   RUST_BACKTRACE: 1
@@ -13,6 +27,7 @@ env:
 jobs:
   mono:
     runs-on: self-hosted
+    if: ${{ github.event.inputs.run_ci == 'true' }}
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust
@@ -47,18 +62,10 @@ jobs:
   build:
     needs: mono
     runs-on: self-hosted
+    if: ${{ github.event.inputs.run_build == 'true' }}
     steps:
       - uses: actions/checkout@v3
       
-      - name: Build and push Docker image
-        run: just docker-release
-  deploy:
-    runs-on: ubuntu-latest
-    needs: mono
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
         with:
@@ -69,8 +76,15 @@ jobs:
       - name: Configure Docker
         run: gcloud auth configure-docker gcr.io
 
-      - name: Build and push image
+      - name: Build and push Docker image
         run: just docker-release
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ github.event.inputs.run_deploy == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Configure kubectl
         run: gcloud container clusters get-credentials personal-cluster --zone asia-east1-a --project ivanshyu
