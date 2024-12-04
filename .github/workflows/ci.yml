@@ -27,7 +27,7 @@ env:
 jobs:
   mono:
     runs-on: self-hosted
-    if: ${{ github.event.inputs.run_ci == 'false' }}
+    if: ${{ github.event.inputs.run_ci == 'true' }}
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust
@@ -62,7 +62,7 @@ jobs:
   build:
     needs: mono
     runs-on: self-hosted
-    if: ${{ github.event.inputs.run_build == 'false' }}
+    if: ${{ github.event.inputs.run_build == 'true' }}
     steps:
       - uses: actions/checkout@v3
       
@@ -81,7 +81,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    if: ${{ github.event.inputs.run_deploy == 'false' }}
+    if: ${{ github.event.inputs.run_deploy == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
