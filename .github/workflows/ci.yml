@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 "on":
   pull_request: null
   push:
@@ -44,3 +44,38 @@ jobs:
         run: |-
           echo $TAG                  
           just local-test
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: mono
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: 'latest'
+          service_account_key: ${{ secrets.GCP_CREDENTIALS }}
+          project_id: ivanshyu
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker gcr.io
+
+      - name: Build and push image
+        run: just docker-release
+
+      - name: Configure kubectl
+        run: gcloud container clusters get-credentials personal-cluster --zone asia-east1-a --project ivanshyu
+
+      - name: Deploy to GKE
+        run: kubectl apply -f ./deployment/k8s-configs/bis-pod.yaml
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/bis -n default
