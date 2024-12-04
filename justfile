@@ -55,7 +55,10 @@ local-bis-docker:
     docker compose -f ./deployment/docker-compose.yaml up -d bis
 
 local-pg:
-	docker compose -f ./deployment/docker-compose.yaml up -d postgres adminer 
+	docker compose -f ./deployment/docker-compose.yaml up -d postgres 
+
+local-adminer:
+	docker compose -f ./deployment/docker-compose.yaml up -d adminer 
 
 local-testnet:
 	test -d ~/bitcoin-data/testnet || mkdir -p ~/bitcoin-data/testnet
