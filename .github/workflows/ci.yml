@@ -111,8 +111,15 @@ jobs:
           version: 'latest'
           project_id: 'ivanshyu'
 
+      - name: Install GKE Auth Plugin
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
+
       - name: Configure kubectl
-        run: gcloud container clusters get-credentials personal-cluster --zone asia-east1-a --project ivanshyu
+        run: |
+          gcloud components install gke-gcloud-auth-plugin
+          gcloud container clusters get-credentials personal-cluster --zone asia-east1-a --project ivanshyu
 
       - name: Deploy to GKE
         run: kubectl apply -f ./deployment/k8s-configs/bis-pod.yaml
