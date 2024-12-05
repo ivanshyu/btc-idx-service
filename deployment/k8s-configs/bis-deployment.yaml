@@ -1,4 +1,4 @@
-apiVersion: v1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
@@ -8,34 +8,43 @@ metadata:
     io.kompose.service: bis
   name: bis
 spec:
-  containers:
-    - args:
-        - mono
-      env:
-        - name: DATABASE_URL
-          value: "postgresql://postgres:FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g@postgres:5432/btc_indexer?sslmode=disable"
-        - name: BIS_POSTGRES
-          value: "postgresql://postgres:FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g@postgres:5432/btc_indexer?sslmode=disable"
-        - name: BTCUSER
-          value: bitcoinrpc
-        - name: BTCUSERPASSWORD
-          value: FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g
-        - name: PGPASSWORD
-          value: FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g
-        - name: PGPORT
-          value: "5432"
-        - name: RUST_LOG
-          value: info,sqlx=warn
-      image: gcr.io/ivanshyu/bis:latest
-      name: bis
-      imagePullPolicy: Always
-      ports:
-        - containerPort: 3030
-          protocol: TCP
-      volumeMounts:
-        - mountPath: /app/deployment/config.toml
-          name: bis-cm0
-          subPath: config.toml
+  selector:
+    matchLabels:
+      io.kompose.service: bis
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        io.kompose.service: bis
+    spec:
+      containers:
+        - args:
+            - mono
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://postgres:FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g@postgres:5432/btc_indexer?sslmode=disable"
+            - name: BIS_POSTGRES
+              value: "postgresql://postgres:FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g@postgres:5432/btc_indexer?sslmode=disable"
+            - name: BTCUSER
+              value: bitcoinrpc
+            - name: BTCUSERPASSWORD
+              value: FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g
+            - name: PGPASSWORD
+              value: FG9xrwZCqZeIG77FHBVtnapx6JOGisIQCgPzWbzr+Z+g
+            - name: PGPORT
+              value: "5432"
+            - name: RUST_LOG
+              value: info,sqlx=warn
+          image: gcr.io/ivanshyu/bis:latest
+          name: bis
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3030
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /app/deployment/config.toml
+              name: bis-cm0
+              subPath: config.toml
   restartPolicy: OnFailure
   volumes:
     - configMap:
