@@ -238,12 +238,12 @@ just local-pg local-adminer
 just local-bis-docker
 ```
 
-### (Choose 1 from 2) Local Compile & Run btc-idx-service
+#### (Choose 1 from 2) Local Compile & Run btc-idx-service
 
 ```bash
 just local-mono
 ```
-
+Note: You need to delete `BIS_POSTGRES` var in .env because the domain is for docker.
 #### (Choose 1 from 3) Start Bitcoin with QuickNode
 
 ```
@@ -268,7 +268,8 @@ Note:
 
 - `just` is a build tool to simplify the build process like `Makefile` (https://just.systems/man/en/)
 - `local-mono` will start the indexer, and auto scan from the `start_block` in the config file. If `start_block` is omitted, it will scan from the newest block queried from the chain.
-
+- `local-grafana` will start the Grafana, Promtail and Loki for logging visualization, you need to create a GCP service account and download the key and put it in `deployment/gcp_sa_key.json` for loki.
+- CI/CD are running on a self-hosted GitLab runner
 ### CLI
 
 ```bash
