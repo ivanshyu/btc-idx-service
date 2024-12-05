@@ -17,6 +17,14 @@ spec:
       labels:
         io.kompose.service: bis
     spec:
+      restartPolicy: OnFailure
+      volumes:
+        - configMap:
+            items:
+              - key: config.toml
+                path: config.toml
+            name: bis-cm0
+          name: bis-cm0
       containers:
         - args:
             - mono
@@ -45,11 +53,3 @@ spec:
             - mountPath: /app/deployment/config.toml
               name: bis-cm0
               subPath: config.toml
-  restartPolicy: OnFailure
-  volumes:
-    - configMap:
-        items:
-          - key: config.toml
-            path: config.toml
-        name: bis-cm0
-      name: bis-cm0
