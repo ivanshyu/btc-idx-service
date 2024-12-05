@@ -82,5 +82,5 @@ local-test:
     just local-pg local-reg pure-test
 
 local-grafana:
-    docker compose -f ./deployment/docker-compose.yaml up -d prometheus
-    docker compose -f ./deployment/docker-compose.yaml up -d grafana
+    docker compose -f ./deployment/docker-compose.yaml up -d loki promtail grafana
+    # docker compose -f ./deployment/docker-compose.yaml up -d grafana
