@@ -4,7 +4,6 @@ metadata:
   annotations:
     kompose.cmd: kompose convert
     kompose.version: 1.34.0 (HEAD)
-    deploy-timestamp: "${DEPLOY_TIMESTAMP}"
   labels:
     io.kompose.service: bis
   name: bis
@@ -17,7 +16,6 @@ spec:
     metadata:
       labels:
         io.kompose.service: bis
-        deploy-date: "${DEPLOY_TIMESTAMP}"
     spec:
       restartPolicy: Always
       volumes:
