@@ -19,9 +19,12 @@ use bis_core::{
 };
 use bitcoin::Network;
 use sqlx::PgPool;
-use tokio::sync::{
-    mpsc::{self, UnboundedSender},
-    Notify,
+use tokio::{
+    signal::unix::{signal, SignalKind},
+    sync::{
+        mpsc::{self, UnboundedSender},
+        Notify,
+    },
 };
 
 #[derive(Parser, Debug, Clone)]
@@ -76,7 +79,7 @@ pub fn run(shared_params: SharedParams, opts: Opts) -> anyhow::Result<()> {
     ))?;
 
     // Run services to completion
-    rt.spawn(server.run(tokio::signal::ctrl_c()));
+    rt.spawn(server.run(shutdown_signal()));
     System::new().block_on(build_http_service(&opts.host, service_config))?;
 
     rt.block_on(all_services_complete.recv());
@@ -155,4 +158,20 @@ async fn create_aggregator(
     let shutdown_notify = Arc::new(Notify::new());
     let aggregator = Aggregator::new(pg_pool, receiver, shutdown_notify);
     Ok((sender, aggregator))
+}
+
+async fn shutdown_signal() {
+    let mut sigterm =
+        signal(SignalKind::terminate()).expect("failed to create SIGTERM signal handler");
+    let mut sigint =
+        signal(SignalKind::interrupt()).expect("failed to create SIGINT signal handler");
+
+    tokio::select! {
+        _ = sigterm.recv() => {
+            log::info!("Received SIGTERM signal");
+        }
+        _ = sigint.recv() => {
+            log::info!("Received SIGINT signal");
+        }
+    }
 }
