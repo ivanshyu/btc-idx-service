@@ -143,8 +143,10 @@ Other Libs:
 │   ├── Dockerfile
 │   ├── config.toml (Default config, Mainnet)
 │   ├── config_dev.toml (Dev config, Regtest)
+│   ├── config_docker.toml (Docker config, Regtest)
 │   ├── config_staging.toml (Staging config, Testnet)
-│   └── docker-compose.yaml (Docker compose file)
+│   ├── docker-compose.yaml (Docker compose file)
+│   └── k8s-configs (Kubernetes configs)
 ├── integration-tests
 │   ├── Cargo.toml
 │   └── src
@@ -264,10 +266,8 @@ Note:
 ### CLI
 
 ```bash
-cargo run --bin bis indexer %SUBCOMMAND%
-```
+$ cargo run --bin bis indexer
 
-```
 USAGE:
     bis indexer [OPTIONS] <SUBCOMMAND>
 
