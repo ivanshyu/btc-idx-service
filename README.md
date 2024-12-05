@@ -229,7 +229,19 @@ docker pull gcr.io/ivanshyu/bis:latest
 #### Start Postgres and Adminer(Visualize DB at http://localhost:8888)
 
 ```bash
-just local-pg
+just local-pg local-adminer
+```
+
+#### (Choose 1 from 2) Start docker btc-idx-service
+
+```bash
+just local-bis-docker
+```
+
+### (Choose 1 from 2) Local Compile & Run btc-idx-service
+
+```bash
+just local-mono
 ```
 
 #### (Choose 1 from 3) Start Bitcoin with QuickNode
@@ -251,12 +263,6 @@ just local-reg
 ```
 
 To switch the network, go to `Network Config / Environment` for more details.
-
-### Compile & Run
-
-```bash
-just local-mono
-```
 
 Note:
 
@@ -298,11 +304,14 @@ cargo run --bin bis indexer pause
 
 ## Network Config / Environment
 
-- (Default) mainnet (./deployment/config.toml)
+- (Local Default) mainnet (./deployment/config.toml)
+- (Docker Default) regtest (./deployment/config_docker.toml)
 - testnet (./deployment/config_staging.toml)
 - regtest (./deployment/config_dev.toml)
 
-You can set the config file path in `BIS_CONFIG_FILE` environment variable.
+Local: You can set the config file path in `BIS_CONFIG_FILE` environment variable.
+
+Docker: The config file is set in `./deployment/config_docker.toml` and mount to the container at `/app/deployment/config.toml`
 
 Note:
 
@@ -501,6 +510,6 @@ This process ensures that the system maintains accurate state even when the bloc
 
 ## Graceful Shutdown
 
-Once the indexer is running, you can press `Ctrl+C` or through the CLI `terminate` command to terminate the indexer gracefully, and then the aggregator will be notified and drain all the events in the channel.
+Once the indexer is running, you can send `SIGTERM` | `SIGINT` signal or through the CLI `terminate` command to terminate the indexer gracefully, and then the aggregator will be notified and drain all the events in the channel.
 
 - Note: For this project, I didn't implement the recovery behavior for the aggregator because it is stateless(simplify the design), so once aggregator is killed forcefully without processing all the events, the remaining events will be lost without aggregation.
