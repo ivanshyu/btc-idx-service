@@ -122,7 +122,7 @@ jobs:
           gcloud container clusters get-credentials personal-cluster --zone asia-east1-a --project ivanshyu
 
       - name: Deploy to GKE
-        run: kubectl apply -f ./deployment/k8s-configs/bis-pod.yaml
+        run: kubectl apply -f ./deployment/k8s-configs/bis-deployment.yaml
 
       - name: Verify deployment
         run: |
