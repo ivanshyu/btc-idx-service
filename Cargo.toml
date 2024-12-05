@@ -3,7 +3,7 @@ members = ["core", "bin/bis", "integration-tests"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 repository = "https://github.com/ivanshyu/btc-idx-service.git"
 description = "bitcoin index service"
