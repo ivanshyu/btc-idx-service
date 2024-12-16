@@ -183,9 +183,9 @@ impl Processor {
 
                 db::spend_utxo(&mut *db_tx, utxo.txid, utxo.vout, block_num).await?;
 
-                if let Some(balance) = balance_updates.get_mut(&utxo.owner) {
-                    *balance -= &utxo.amount;
-                }
+                // if let Some(balance) = balance_updates.get_mut(&utxo.owner) {
+                //     *balance -= &utxo.amount;
+                // }
 
                 // balance change will be negative
                 let balance = -&utxo.amount
