@@ -64,11 +64,7 @@ fn scan_block(opts: Opts, from: usize, to: usize) -> anyhow::Result<()> {
         let response = client.post(&url).send().await?;
 
         if !response.status().is_success() {
-            anyhow::bail!(
-                "Failed to scan blocks: {} - {}",
-                response.status(),
-                response.text().await?
-            );
+            anyhow::bail!("Failed to scan blocks: {} - {}", from, to);
         }
         Ok(())
     })
@@ -87,11 +83,7 @@ fn terminate(opts: Opts) -> anyhow::Result<()> {
         let response = client.post(&url).send().await?;
 
         if !response.status().is_success() {
-            anyhow::bail!(
-                "Failed to scan blocks: {} - {}",
-                response.status(),
-                response.text().await?
-            );
+            anyhow::bail!("Failed to terminate: {}", response.text().await?);
         }
         Ok(())
     })
@@ -110,11 +102,7 @@ fn pause(opts: Opts) -> anyhow::Result<()> {
         let response = client.post(&url).send().await?;
 
         if !response.status().is_success() {
-            anyhow::bail!(
-                "Failed to scan blocks: {} - {}",
-                response.status(),
-                response.text().await?
-            );
+            anyhow::bail!("Failed to pause: {}", response.text().await?);
         }
         Ok(())
     })
@@ -133,11 +121,7 @@ fn resume(opts: Opts) -> anyhow::Result<()> {
         let response = client.post(&url).send().await?;
 
         if !response.status().is_success() {
-            anyhow::bail!(
-                "Failed to scan blocks: {} - {}",
-                response.status(),
-                response.text().await?
-            );
+            anyhow::bail!("Failed to resume: {}", response.text().await?);
         }
         Ok(())
     })
